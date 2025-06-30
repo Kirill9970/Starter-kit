@@ -53,6 +53,9 @@ NODE_ENV=local
 HOST=localhost
 PORT=3001
 
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
+
 # Swagger Authentication
 SWAGGER_USERNAME=your_username
 SWAGGER_PASSWORD=your_password
@@ -114,6 +117,7 @@ src/
 ## API Documentation
 
 Once the service is running, you can access the Swagger documentation at:
+
 ```
 http://localhost:3000/api/docs
 ```
@@ -131,6 +135,7 @@ pnpm test:cov
 ## Dependencies
 
 ### Main Dependencies
+
 - @nestjs/common: ^10.4.15
 - @nestjs/core: ^10.4.15
 - @nestjs/swagger: ^7.4.2
@@ -139,6 +144,7 @@ pnpm test:cov
 - @nestjs/passport: ^10.0.3
 
 ### Development Dependencies
+
 - TypeScript
 - ESLint
 - Prettier

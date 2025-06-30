@@ -32,14 +32,19 @@ The Authentication Service is a crucial microservice component of our system, re
 ## Installation
 
 1. Install dependencies:
+
 ```bash
 pnpm install
 ```
 
 2. Create and configure your `.env` file based on the template below:
+
 ```env
 # Environment
 NODE_ENV=local
+
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
 
 # Authentication Configuration
 AUTH_ACCESS_TOKEN_EXPIRES_IN=900000
@@ -112,6 +117,7 @@ pnpm run start:prod
 ## API Documentation
 
 Once the service is running, you can access the Swagger API documentation at:
+
 ```
 http://localhost:3000/api/docs
 ```
@@ -151,6 +157,7 @@ src/
 ## Dependencies
 
 Key dependencies include:
+
 - NestJS framework and its modules
 - TypeORM for database operations
 - Passport.js for authentication
@@ -173,11 +180,13 @@ For a complete list of dependencies, see `package.json`.
 ### Common Issues
 
 1. **Database Connection Issues**
+
    - Verify database credentials in `.env`
    - Ensure PostgreSQL is running
    - Check network connectivity
 
 2. **Authentication Errors**
+
    - Verify OAuth credentials
    - Check JWT configuration
    - Ensure Redis is running for session management

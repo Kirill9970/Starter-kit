@@ -49,6 +49,9 @@ Create a `.env` file in the service root directory with the following configurat
 # Environment
 NODE_ENV=local
 
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
+
 # Redis Configuration
 REDIS_URL=redis://:password@localhost:6379/0
 
@@ -70,11 +73,13 @@ LOG_LEVEL=info
 ## Running the Application
 
 ### Using Docker
+
 ```bash
 $ docker compose up
 ```
 
 ### Local Development
+
 ```bash
 # development
 $ pnpm run start
@@ -100,6 +105,7 @@ src/
 ## WebSocket Events
 
 The service handles the following WebSocket events:
+
 - `connection`: Client connection event
 - `disconnect`: Client disconnection event
 - `message`: Message receiving event
@@ -108,6 +114,7 @@ The service handles the following WebSocket events:
 ## API Documentation
 
 The service exposes its API documentation through Swagger. Once running, you can access it at:
+
 ```
 http://localhost:3000/api/docs
 ```
@@ -136,8 +143,3 @@ $ pnpm run test:cov
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-
-
-
-

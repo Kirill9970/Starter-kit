@@ -49,6 +49,9 @@ Create a `.env` file in the service root directory with the following configurat
 # Environment
 NODE_ENV=local
 
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
+
 # Redis Configuration
 REDIS_URL=redis://:password@localhost:6379/0
 
@@ -60,8 +63,8 @@ DB_PASSWORD=your_password
 DB_PORT=5433
 
 # RabbitMQ Configuration
-RMQ_URL=amqp://@localhost:5672
-RMQ_QUEUE=ws_coordinator_service
+COORDINATOR_SERVICE_RMQ_URL=amqp://@localhost:5672
+COORDINATOR_SERVICE_RMQ_QUEUE=ws_coordinator_service
 
 # Logging
 LOG_LEVEL=info
@@ -70,11 +73,13 @@ LOG_LEVEL=info
 ## Running the Application
 
 ### Using Docker
+
 ```bash
 $ docker compose up
 ```
 
 ### Local Development
+
 ```bash
 # development
 $ pnpm run start
@@ -101,6 +106,7 @@ src/
 ## API Documentation
 
 The service exposes its API documentation through Swagger. Once running, you can access it at:
+
 ```
 http://localhost:3000/api/docs
 ```
@@ -129,8 +135,3 @@ $ pnpm run test:cov
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-
-
-
-

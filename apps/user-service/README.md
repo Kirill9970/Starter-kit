@@ -47,6 +47,9 @@ Create a `.env` file in the service root directory with the following configurat
 # Environment
 NODE_ENV=local
 
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
+
 # Redis Configuration
 REDIS_URL=redis://:password@localhost:6379/0
 
@@ -71,11 +74,13 @@ LOG_LEVEL=info
 ## Running the Application
 
 ### Using Docker (optional)
+
 ```bash
 $ sudo docker compose up
 ```
 
 ### Local Development
+
 ```bash
 # development
 $ pnpm run start
@@ -101,6 +106,7 @@ src/
 ## API Documentation
 
 The service exposes its API documentation through Swagger. Once running, you can access it at:
+
 ```
 http://localhost:3000/api/docs
 ```
