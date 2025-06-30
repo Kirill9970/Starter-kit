@@ -1,0 +1,45 @@
+{
+  "name": "@crypton-nestjs-kit/prisma",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "MIT",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate --schema prisma/schema.prisma",
+    "build": "tsc",
+    "check-engines": "node ../../node_modules/fbjs-scripts/node/check-dev-engines.js package.json",
+    "clean": "rimraf build && rimraf coverage",
+    "prebuild": "npm run clean && npm run check-engines",
+    "prepublishOnly": "npm run build",
+    "pretest": "npm run build",
+    "test": "npm run test:ci",
+    "test:ci": "jest --ci --collectCoverage --maxWorkers 2 --passWithNoTests",
+    "lint": "eslint \"{src,test}/**/*.ts\" --no-error-on-unmatched-pattern --quiet --fix"
+  },
+    "engines": {
+    "node": ">=20.x",
+    "npm": ">=10.2.x"
+  },
+  "devEngines": {
+    "node": ">=20.x",
+    "npm": ">=10.2.x"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.15",
+    "@prisma/client": "^6.10.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.10.1",
+    "typescript": "^5.2.2",
+    "@types/node": "^20.12.11",
+    "eslint": "^8.26.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-simple-import-sort": "^10.0.0",
+    "prettier": "^2.3.2",
+    "tslib": "^2.6.2"
+  }
+} 

@@ -1,29 +1,29 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module, OnModuleInit } from '@nestjs/common';
-import {
-  APP_INTERCEPTOR,
-  DiscoveryService,
-  MetadataScanner,
-  Reflector,
-} from '@nestjs/core';
-import { JwtModule, JwtService } from '@nestjs/jwt';
+import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ApiKeyEntity,
   ClientUserModule,
   loadUserClientOptions,
-  PermissionsRegistrar,
   PermissionsRegistrarModule,
   RequireConfirmationInterceptor,
   SessionEntity,
   UserClient,
 } from '@crypton-nestjs-kit/common';
-import { ConfigModule, ConfigService } from '@crypton-nestjs-kit/config';
+import {
+  AuthConfigModule,
+  AuthConfigService,
+  ConfigModule,
+  ConfigService,
+} from '@crypton-nestjs-kit/config';
 import { DBModule } from '@crypton-nestjs-kit/database';
 import {
   AppLoggerModule,
   LoggingInterceptor,
 } from '@crypton-nestjs-kit/logger';
+import { PrismaModule } from '@crypton-nestjs-kit/prisma';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 
@@ -68,6 +68,13 @@ import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
           url: redis.url,
         } as RedisClientOptions;
       },
+    }),
+    PrismaModule.forRootAsync({
+      imports: [AuthConfigModule],
+      inject: [AuthConfigService],
+      useFactory: (cfg: AuthConfigService) => ({
+        databaseUrl: cfg.get().prisma.databaseUrl,
+      }),
     }),
   ],
   controllers: [AuthController, ApiKeyController],
