@@ -4,7 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { PrismaClient } from './generated/client';
+import { PrismaClient } from './generated/shared-client';
 import { PRISMA_OPTIONS } from '../prisma.constants';
 import { PrismaModuleOptions } from '../prisma.interfaces';
 

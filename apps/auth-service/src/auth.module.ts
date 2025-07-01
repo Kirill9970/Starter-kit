@@ -2,14 +2,11 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import {
-  ApiKeyEntity,
   ClientUserModule,
   loadUserClientOptions,
   PermissionsRegistrarModule,
   RequireConfirmationInterceptor,
-  SessionEntity,
   UserClient,
 } from '@crypton-nestjs-kit/common';
 import {
@@ -18,7 +15,6 @@ import {
   ConfigModule,
   ConfigService,
 } from '@crypton-nestjs-kit/config';
-import { DBModule } from '@crypton-nestjs-kit/database';
 import {
   AppLoggerModule,
   LoggingInterceptor,
@@ -42,10 +38,6 @@ import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
     ConfigModule,
     AppLoggerModule,
     ClientUserModule.forRoot(loadUserClientOptions()),
-    TypeOrmModule.forFeature([SessionEntity, ApiKeyEntity]),
-    DBModule.forRoot({
-      entities: [SessionEntity, ApiKeyEntity],
-    }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

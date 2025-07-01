@@ -10,7 +10,7 @@ import {
   IApiKey,
   UpdateApiKeyDto,
 } from '@crypton-nestjs-kit/common';
-import { PrismaService } from '@crypton-nestjs-kit/prisma';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 import * as crypto from 'crypto';
 
 const API_KEY_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -20,7 +20,7 @@ const API_KEY_VALIDATE_CACHE_PREFIX = 'api-key-validate';
 @Injectable()
 export class ApiKeyService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: SharedPrismaService,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}

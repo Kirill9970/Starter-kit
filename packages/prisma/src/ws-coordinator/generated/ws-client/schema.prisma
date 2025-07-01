@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/ws-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("WS_COORDINATOR_DATABASE_URL")
+}
+
+model Service {
+  id          String              @id(map: "PK_c77cf540affcc8a04962fc6e9f8") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  url         String              @unique(map: "UQ_31c3d6653d24b1b42cca511d82e")
+  type        Service_type_enum
+  load        Decimal             @default(0) @db.Decimal
+  status      Service_status_enum
+  lastUpdated DateTime            @default(now()) @map("last_updated") @db.Timestamptz(6)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+}
+
+enum Service_status_enum {
+  active
+  inactive
+}
+
+enum Service_type_enum {
+  notification
+}

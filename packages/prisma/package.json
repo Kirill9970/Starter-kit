@@ -31,7 +31,7 @@
     "test:ci": "jest --ci --collectCoverage --maxWorkers 2 --passWithNoTests",
     "lint": "eslint \"{src,test}/**/*.ts\" --no-error-on-unmatched-pattern --quiet --fix"
   },
-    "engines": {
+  "engines": {
     "node": ">=20.x",
     "npm": ">=10.2.x"
   },
@@ -44,8 +44,6 @@
     "@prisma/client": "^6.10.1"
   },
   "devDependencies": {
-    "prisma": "^6.10.1",
-    "typescript": "^5.2.2",
     "@types/node": "^20.12.11",
     "eslint": "^8.26.0",
     "eslint-config-prettier": "^8.5.0",
@@ -53,13 +51,8 @@
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-simple-import-sort": "^10.0.0",
     "prettier": "^2.3.2",
-    "tslib": "^2.6.2"
-  },
-  "exports": {
-    ".": "./build/index.js",
-    "./shared": "./build/shared/index.js",
-    "./batch": "./build/batch/index.js",
-    "./notification": "./build/notification/index.js",
-    "./ws-coordinator": "./build/ws-coordinator/index.js"
+    "prisma": "^6.10.1",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2"
   }
-} 
+}

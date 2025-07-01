@@ -32,7 +32,7 @@ import {
   UserClient,
 } from '@crypton-nestjs-kit/common';
 import { ConfigService } from '@crypton-nestjs-kit/config';
-import { PrismaService } from '@crypton-nestjs-kit/prisma';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 
 import { ServiceJwtUseCase } from '../../use-cases/service-jwt.use-case';
 
@@ -41,7 +41,7 @@ import { AuthStrategyFactory } from './auth-strategy-factory.service';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: SharedPrismaService,
     @Inject(JwtService)
     private readonly jwtService: JwtService,
     private readonly cacheManager: Cache,

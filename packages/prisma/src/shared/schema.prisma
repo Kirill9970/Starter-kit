@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "./generated/client"
+  output   = "./generated/shared-client"
 }
 
 datasource db {
@@ -13,8 +13,8 @@ model ApiKeys {
   encryptedKey        String   @unique(map: "UQ_f5f024f31d582d2ded166931394") @map("encrypted_key") @db.VarChar
   userId              String?  @map("user_id") @db.VarChar(255)
   type                String   @db.VarChar
-  encryptedAllowedIps String?  @map("encrypted_allowed_ips")
-  permissions         String?
+  encryptedAllowedIps String[]  @default([]) @map("encrypted_allowed_ips")
+  permissions         String[]  @default([])
   isActive            Boolean  @default(true) @map("is_active")
   expiredAt           DateTime @map("expired_at") @db.Timestamp(6)
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
