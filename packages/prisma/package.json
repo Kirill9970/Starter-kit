@@ -7,7 +7,20 @@
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
-    "generate": "prisma generate --schema prisma/schema.prisma",
+    "generate:shared": "prisma generate --schema src/shared/schema.prisma",
+    "generate:batch": "prisma generate --schema src/batch/schema.prisma",
+    "generate:notification": "prisma generate --schema src/notification/schema.prisma",
+    "generate:ws": "prisma generate --schema src/ws-coordinator/schema.prisma",
+    "pull:shared": "prisma db pull --schema src/shared/schema.prisma",
+    "pull:batch": "prisma db pull --schema src/batch/schema.prisma",
+    "pull:notification": "prisma db pull --schema src/notification/schema.prisma",
+    "pull:ws": "prisma db pull --schema src/ws-coordinator/schema.prisma",
+    "init:shared": "pnpm run pull:shared && pnpm run generate:shared",
+    "init:batch": "pnpm run pull:batch && pnpm run generate:batch",
+    "init:notification": "pnpm run pull:notification && pnpm run generate:notification",
+    "init:ws": "pnpm run pull:ws && pnpm run generate:ws",
+    "init:all": "pnpm run init:shared && pnpm run init:batch && pnpm run init:notification && pnpm run init:ws",
+    "generate:all": "pnpm run generate:shared && pnpm run generate:batch && pnpm run generate:notification && pnpm run generate:ws",
     "build": "tsc",
     "check-engines": "node ../../node_modules/fbjs-scripts/node/check-dev-engines.js package.json",
     "clean": "rimraf build && rimraf coverage",
@@ -41,5 +54,12 @@
     "eslint-plugin-simple-import-sort": "^10.0.0",
     "prettier": "^2.3.2",
     "tslib": "^2.6.2"
+  },
+  "exports": {
+    ".": "./build/index.js",
+    "./shared": "./build/shared/index.js",
+    "./batch": "./build/batch/index.js",
+    "./notification": "./build/notification/index.js",
+    "./ws-coordinator": "./build/ws-coordinator/index.js"
   }
 } 

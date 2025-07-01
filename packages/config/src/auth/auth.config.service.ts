@@ -18,7 +18,9 @@ export class AuthConfigService {
   private parseConfigFromEnv(env: NodeJS.ProcessEnv): AuthConfig {
     return {
       prisma: {
-        databaseUrl: env.DATABASE_URL || DEFAULT_AUTH_CONFIG.prisma.databaseUrl,
+        sharedDatabaseUrl:
+          env.SHARED_DATABASE_URL ||
+          DEFAULT_AUTH_CONFIG.prisma.sharedDatabaseUrl,
       },
     };
   }

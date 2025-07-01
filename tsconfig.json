@@ -2,6 +2,14 @@
   "compilerOptions": {
     "target": "ES2015", // Или выше: ES2017, ES2020
     "module": "CommonJS",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "prisma/shared": ["packages/prisma/src/shared"],
+      "prisma/batch": ["packages/prisma/src/batch"],
+      "prisma/notification": ["packages/prisma/src/notification"],
+      "prisma/ws-coordinator": ["packages/prisma/src/ws-coordinator"],
+      "prisma": ["packages/prisma/src"]
+    }
   }
 }

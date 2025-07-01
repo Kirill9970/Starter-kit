@@ -23,7 +23,7 @@ import {
   AppLoggerModule,
   LoggingInterceptor,
 } from '@crypton-nestjs-kit/logger';
-import { PrismaModule } from '@crypton-nestjs-kit/prisma';
+import { SharedPrismaModule } from '@crypton-nestjs-kit/prisma';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 
@@ -69,11 +69,11 @@ import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
         } as RedisClientOptions;
       },
     }),
-    PrismaModule.forRootAsync({
+    SharedPrismaModule.forRootAsync({
       imports: [AuthConfigModule],
       inject: [AuthConfigService],
       useFactory: (cfg: AuthConfigService) => ({
-        databaseUrl: cfg.get().prisma.databaseUrl,
+        databaseUrl: cfg.get().prisma.sharedDatabaseUrl,
       }),
     }),
   ],

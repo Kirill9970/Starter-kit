@@ -1,5 +1,6 @@
-export * from './prisma.module';
-export * from './prisma.service';
 export * from './prisma.interfaces';
 export * from './prisma.constants';
-export * from '../generated/client';
+export * from './shared/';
+export * from './batch';
+export * from './ws-coordinator';
+// export * from './notification';

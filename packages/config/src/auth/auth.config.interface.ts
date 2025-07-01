@@ -1,5 +1,5 @@
 export interface AuthConfig {
   prisma: {
-    databaseUrl: string;
+    sharedDatabaseUrl: string;
   };
 }
