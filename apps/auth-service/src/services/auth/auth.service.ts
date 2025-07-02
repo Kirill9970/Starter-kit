@@ -36,8 +36,6 @@ import {
 import { ConfigService } from '@crypton-nestjs-kit/config';
 import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 
-import { ServiceJwtUseCase } from '../../use-cases/service-jwt.use-case';
-
 import { AuthStrategyFactory } from './auth-strategy-factory.service';
 
 @Injectable()

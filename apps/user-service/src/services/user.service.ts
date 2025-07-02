@@ -1,10 +1,7 @@
 import { Cache } from '@nestjs/cache-manager';
 import { Injectable } from '@nestjs/common';
 import {
-  ApiKeyType,
   AuthClient,
-  comparePassword,
-  decrypt,
   DefaultRole,
   hashPassword,
   ICreateConfirmationCodesResponse,
@@ -15,9 +12,6 @@ import {
   IGetUserByIdRequest,
   IGetUserByIdResponse,
   IGetUserByLoginRequest,
-  INativeLoginRequest,
-  INativeLoginResponse,
-  ISessionCreateRequest,
   LoginMethod,
   User,
   UserStatus,
@@ -26,6 +20,7 @@ import {
 import type { PermissionEntity } from '@crypton-nestjs-kit/common/build/entities/user/permissions.entity';
 import type { RoleEntity } from '@crypton-nestjs-kit/common/build/entities/user/role.entity';
 import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
+import { Prisma } from '@crypton-nestjs-kit/prisma/src/shared/generated/shared-client';
 import { isUUID } from 'class-validator';
 import { v4 } from 'uuid';
 import { uuid } from 'uuidv4';
@@ -690,7 +685,7 @@ export class UserService {
         status,
         type,
         ...rest
-      } = userWithRelations as unknown as any;
+      } = userWithRelations;
 
       const safeUser = {
         ...rest,
@@ -923,6 +918,50 @@ export class UserService {
         status: false,
         message: 'Permissions not found',
         permissions: [],
+      };
+    }
+  }
+
+  public async getPermissionsByPattern(pattern: string): Promise<any> {
+    try {
+      const CACHE_KEY = `permission:${pattern}`;
+      const cachedData = await this.cacheManager.get(CACHE_KEY);
+
+      if (cachedData) {
+        return {
+          status: true,
+          message: 'Permission found',
+          permission: cachedData,
+        };
+      }
+
+      const permission = await this.prisma.permissions.findFirst({
+        where: {
+          messagePattern: pattern,
+        },
+      });
+
+      if (!permission) {
+        return {
+          status: false,
+          message: 'Permission not found',
+          permission: null,
+        };
+      }
+
+      await this.cacheManager.set(CACHE_KEY, permission, 10 * 1000);
+
+      return {
+        status: true,
+        message: 'Permission found',
+        permission: permission,
+      };
+    } catch (e) {
+      return {
+        error: e.message,
+        status: false,
+        message: 'Permission not found',
+        permission: null,
       };
     }
   }

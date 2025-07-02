@@ -1,19 +1,14 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import {
   ClientAuthModule,
   ClientPermissionModule,
-  ClientUserModule,
   loadAuthClientOptions,
   loadPermissionClientOptions,
-  loadUserClientOptions,
-  PermissionEntity,
   PermissionsRegistrarModule,
-  RequireConfirmationInterceptor,
   ServiceJwtInterceptor,
-  UserClient,
 } from '@crypton-nestjs-kit/common';
 import {
   ConfigModule,
