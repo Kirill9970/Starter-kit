@@ -1,16 +1,21 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { OperationEntity } from '@crypton-nestjs-kit/common';
-import { ConfigModule, ConfigService } from '@crypton-nestjs-kit/config';
-import { DBModule } from '@crypton-nestjs-kit/database';
+import {
+  BatchConfigModule,
+  BatchConfigService,
+  ConfigModule,
+  ConfigService,
+} from '@crypton-nestjs-kit/config';
 import { AppLoggerModule } from '@crypton-nestjs-kit/logger';
-import { SettingModule, SettingsEntity } from '@crypton-nestjs-kit/settings';
+import {
+  BatchPrismaModule,
+  SharedPrismaModule,
+} from '@crypton-nestjs-kit/prisma';
+import { SettingModule } from '@crypton-nestjs-kit/settings';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 
 import { BatchController } from './controllers/batch.controller';
-import { BATCH_CONNECTION_NAME } from './services/batch.constants';
 import { BatchService } from './services/batch.service';
 import { BatchWorker } from './services/batch.worker';
 import { WorkerService } from './services/worker.service';
@@ -19,38 +24,21 @@ import { WorkerService } from './services/worker.service';
   imports: [
     ConfigModule,
     AppLoggerModule,
-    SettingModule,
-    DBModule.forRoot({ entities: [SettingsEntity, OperationEntity] }),
-    TypeOrmModule.forRootAsync({
-      name: BATCH_CONNECTION_NAME,
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const config = configService.get().batchService.db;
-
-        return {
-          name: BATCH_CONNECTION_NAME,
-          type: 'postgres',
-          host: config.host,
-          port: config.port,
-          username: config.username,
-          password: config.password,
-          database: config.database,
-          synchronize: true,
-          entities: [OperationEntity],
-          ssl: config.ssl,
-          extra: {
-            connectionLimit: 15000,
-            max: 20,
-            min: 1,
-          },
-          poolSize: 15000,
-          logging: false,
-          keepConnectionAlive: true,
-        };
-      },
-      inject: [ConfigService],
+    BatchPrismaModule.forRootAsync({
+      imports: [BatchConfigModule],
+      inject: [BatchConfigService],
+      useFactory: (cfg: BatchConfigService) => ({
+        databaseUrl: cfg.get().prisma.batchDatabaseUrl,
+      }),
     }),
-    TypeOrmModule.forFeature([OperationEntity], BATCH_CONNECTION_NAME),
+    SharedPrismaModule.forRootAsync({
+      imports: [BatchConfigModule],
+      inject: [BatchConfigService],
+      useFactory: (cfg: BatchConfigService) => ({
+        databaseUrl: cfg.get().prisma.sharedDatabaseUrl,
+      }),
+    }),
+    SettingModule,
     CacheModule.registerAsync<RedisClientOptions>({
       isGlobal: true,
       imports: [ConfigModule],

@@ -2,28 +2,26 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ClientAuthModule,
   ClientUserModule,
   loadAuthClientOptions,
   loadUserClientOptions,
-  PermissionEntity,
   RequireConfirmationInterceptor,
-  RoleEntity,
   ServiceJwtInterceptor,
-  TwoFactorPermissionsEntity,
   UserClient,
-  UserEntity,
-  UserLoginMethodsEntity,
-  UserRoleEntity,
 } from '@crypton-nestjs-kit/common';
-import { ConfigModule, ConfigService } from '@crypton-nestjs-kit/config';
-import { DBModule } from '@crypton-nestjs-kit/database';
+import {
+  ConfigModule,
+  ConfigService,
+  UserConfigModule,
+  UserConfigService,
+} from '@crypton-nestjs-kit/config';
 import {
   AppLoggerModule,
   LoggingInterceptor,
 } from '@crypton-nestjs-kit/logger';
+import { SharedPrismaModule } from '@crypton-nestjs-kit/prisma';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 
@@ -35,24 +33,12 @@ import { UserService } from './services/user.service';
     ConfigModule,
     ClientUserModule.forRoot(loadUserClientOptions()),
     ClientAuthModule.forRoot(loadAuthClientOptions()),
-    TypeOrmModule.forFeature([
-      UserEntity,
-      UserLoginMethodsEntity,
-      RoleEntity,
-      UserRoleEntity,
-      PermissionEntity,
-      TwoFactorPermissionsEntity,
-    ]),
-    DBModule.forRoot({
-      entities: [
-        UserEntity,
-        UserLoginMethodsEntity,
-        RoleEntity,
-        UserRoleEntity,
-        PermissionEntity,
-        TwoFactorPermissionsEntity,
-      ],
-      migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
+    SharedPrismaModule.forRootAsync({
+      imports: [UserConfigModule],
+      inject: [UserConfigService],
+      useFactory: (cfg: UserConfigService) => ({
+        databaseUrl: cfg.get().prisma.sharedDatabaseUrl,
+      }),
     }),
     AppLoggerModule,
     CacheModule.registerAsync<RedisClientOptions>({

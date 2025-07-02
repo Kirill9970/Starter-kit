@@ -37,6 +37,7 @@
     "@crypton-nestjs-kit/config": "workspace:^1.0.0",
     "@crypton-nestjs-kit/database": "workspace:^1.0.0",
     "@crypton-nestjs-kit/logger": "workspace:^1.0.0",
+    "@crypton-nestjs-kit/prisma": "workspace:^1.0.0",
     "axios": "^1.7.2",
     "cache-manager": "^5.4.0",
     "cache-manager-redis-yet": "^4.2.0",

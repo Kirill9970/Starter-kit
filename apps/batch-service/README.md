@@ -62,6 +62,9 @@ DB_USERNAME=app_user
 DB_PASSWORD=your_password
 DB_PORT=5433
 
+BATCH_DATABASE_URL=
+SHARED_DATABASE_URL=
+
 # RabbitMQ Configuration
 BATCH_SERVICE_RMQ_URL=amqp://@localhost:5672
 BATCH_SERVICE_RMQ_QUEUE=batch_service

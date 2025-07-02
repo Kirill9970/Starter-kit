@@ -1,19 +1,17 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
 import {
   BatchOperationStatus,
   UserOperationTypeEnum,
 } from '@crypton-nestjs-kit/common';
 import { CustomLoggerService } from '@crypton-nestjs-kit/logger';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 import { SettingService } from '@crypton-nestjs-kit/settings';
-import { DataSource } from 'typeorm';
 
 import {
   BatchOperationResult,
   ProcessOperations,
   UpdateBatchOperationStatus,
 } from '../interfaces/batch.interface';
-import { BATCH_CONNECTION_NAME } from './batch.constants';
 import { WorkerService } from './worker.service';
 
 interface DoOperations {
@@ -26,8 +24,7 @@ export class BatchWorker implements OnModuleInit {
   constructor(
     private readonly logger: CustomLoggerService,
     private readonly workerService: WorkerService,
-    @InjectDataSource(BATCH_CONNECTION_NAME)
-    private readonly dataSource: DataSource,
+    private readonly sharedPrisma: SharedPrismaService,
     private readonly settingsService: SettingService,
   ) {
     this.logger.setContext(BatchWorker.name);
@@ -97,15 +94,14 @@ export class BatchWorker implements OnModuleInit {
   ): Promise<DoOperations> {
     const batchOperationResult = this.#emptyBatchOperationResult();
 
-    const queryRunner = this.dataSource.createQueryRunner();
     const updated: UpdateBatchOperationStatus[] = [];
 
     try {
-      const transaction = this.#buildTransaction(operations);
-
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
-      await queryRunner.query(transaction);
+      await this.sharedPrisma.$transaction(async (tx) => {
+        for (const operation of operations) {
+          await tx.$executeRawUnsafe(operation.sql);
+        }
+      });
 
       operations.forEach((operation) => {
         updated.push({
@@ -121,22 +117,17 @@ export class BatchWorker implements OnModuleInit {
 
       await this.workerService.updateBatchOperationStatus(updated);
 
-      await queryRunner.commitTransaction();
-
       return {
         status: true,
         batchOperationResult,
       };
     } catch (e) {
       this.logger.error(e.message, this.doOperationsByTransaction.name);
-      await queryRunner.rollbackTransaction();
 
       return {
         status: false,
         batchOperationResult,
       };
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -157,7 +148,7 @@ export class BatchWorker implements OnModuleInit {
     try {
       const promises = operations.map((operation) => ({
         operation,
-        promise: this.dataSource.query(operation.sql),
+        promise: this.sharedPrisma.$executeRawUnsafe(operation.sql),
       }));
 
       const settledResults = await Promise.allSettled(
@@ -232,16 +223,6 @@ export class BatchWorker implements OnModuleInit {
           break;
       }
     });
-  }
-
-  #buildTransaction(operations: ProcessOperations): string {
-    let transaction = ``;
-
-    operations.forEach((operation) => {
-      transaction += `${operation.sql};`;
-    });
-
-    return transaction;
   }
 
   #emptyBatchOperationResult(): BatchOperationResult {

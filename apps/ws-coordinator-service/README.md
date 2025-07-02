@@ -62,6 +62,8 @@ DB_USERNAME=app_user
 DB_PASSWORD=your_password
 DB_PORT=5433
 
+WS_COORDINATOR_DATABASE_URL=
+
 # RabbitMQ Configuration
 COORDINATOR_SERVICE_RMQ_URL=amqp://@localhost:5672
 COORDINATOR_SERVICE_RMQ_QUEUE=ws_coordinator_service
