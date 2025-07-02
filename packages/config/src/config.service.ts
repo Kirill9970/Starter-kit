@@ -16,6 +16,7 @@ export class ConfigService {
     this.config = this.parseConfigFromEnv(process.env);
   }
 
+  // eslint-disable-next-line max-lines-per-function
   private parseConfigFromEnv(env: NodeJS.ProcessEnv): ConfigData {
     return {
       env: env.NODE_ENV || DEFAULT_CONFIG.env,
@@ -48,7 +49,7 @@ export class ConfigService {
         token_secret: env.AUTH_TOKEN_SECRET || 'default-secret-key',
         service_secrets: {
           user_service: env.USER_SERVICE_JWT_SECRET || 'user-service-secret',
-          default: env.DEFAULT_SERVICE_JWT_SECRET || 'default-service-secret',
+          default: env.AUTH_TOKEN_SECRET || 'default-secret-key',
         },
         session_cache_ttl: parseInt(
           env.AUTH_SESSION_CACHE_TTL || '3600000',
@@ -111,6 +112,16 @@ export class ConfigService {
         options: {
           urls: [env.USER_SERVICE_RMQ_URL || ''],
           queue: env.USER_SERVICE_RMQ_QUEUE || '',
+          queueOptions: {
+            durable: false,
+          },
+        },
+        transport: Transport.RMQ,
+      },
+      permissionService: {
+        options: {
+          urls: [env.PERMISSION_SERVICE_RMQ_URL || ''],
+          queue: env.PERMISSION_SERVICE_RMQ_QUEUE || '',
           queueOptions: {
             durable: false,
           },

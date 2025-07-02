@@ -57,85 +57,104 @@ export class AuthClient {
     @Inject(AUTH_INJECT_TOKEN) private readonly authClientProxy: ClientProxy,
   ) {}
 
+  /**
+   * Native authentication (email/password).
+   * @param request - Native login credentials and session data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns Authentication result with session data.
+   */
   async authenticateNative(
     request: INativeLogin,
     traceId: string,
+    serviceToken: string,
   ): Promise<any> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.AUTHENTICATE_NATIVE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
+  /**
+   * OAuth/Social authentication.
+   * @param request - OAuth credentials and session data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns Authentication result with session data.
+   */
   async authenticateSocial(
     request: any,
     traceId: string,
+    serviceToken: string,
   ): Promise<ISessionCreateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
-        AuthClientPatterns.AUTHENTICATE_NATIVE,
-        await createRmqMessage(traceId, request),
+        AuthClientPatterns.AUTHENTICATE_SOCIAL,
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
    * Creates a new session based on the provided request data.
-   *
-   * @param {ISessionCreateRequest} request
-   * @param traceId
-   * @return {Promise<ISessionCreateResponse>} An object with the following properties:
+   * @param request - Session creation request data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns Session creation result.
    */
   async sessionCreate(
     request: ISessionCreateRequest,
     traceId: string,
+    serviceToken: string,
   ): Promise<ISessionCreateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.SESSION_CREATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
-   * Creates and returns two types of JSON Web Tokens (JWTs): an access token and a refresh token.
-   *
-   * @param {ITokenCreateRequest} request
-   * @param traceId
-   * @return {Promise<ITokenCreateResponse>} An object with the following properties:
+   * Creates and returns access and refresh tokens.
+   * @param request - Token creation request data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns Token creation result.
    */
   async tokensCreate(
     request: ITokenCreateRequest,
     traceId: string,
+    serviceToken: string,
   ): Promise<ITokenCreateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.TOKENS_CREATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
-   * Verifies the provided token and returns an object with the following properties:
-   *
-   * @param {ITokenVerifyRequest} request
-   * @param traceId
-   * @param isRejectDifferentIp
-   * @return {Promise<ITokenVerifyResponse>} An object with the following properties:
+   * Verifies the provided token and returns verification result.
+   * @param request - Token verification request data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param isRejectDifferentIp - Optional flag to reject tokens from different IPs.
+   * @returns Token verification result.
    */
   async tokenVerify(
     request: ITokenVerifyRequest,
     traceId: string,
+    serviceToken: string,
     isRejectDifferentIp?: boolean,
   ): Promise<ITokenVerifyResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.TOKEN_VERIFY,
-        await createRmqMessage(traceId, {
+        await createRmqMessage(traceId, serviceToken, {
           ...request,
           isRejectDifferentIp,
         }),
@@ -145,172 +164,230 @@ export class AuthClient {
 
   /**
    * Refreshes the provided refresh token and returns a new access token.
-   *
-   * @param {ITokenRefreshRequest} request
-   * @param traceId
-   * @return {Promise<ITokenRefreshResponse>} An object with the following properties:
+   * @param request - Token refresh request data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns Token refresh result.
    */
   async refreshToken(
     request: ITokenRefreshRequest,
     traceId: string,
+    serviceToken: string,
   ): Promise<ITokenRefreshResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.REFRESH_TOKEN,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
    * Terminates all active sessions for a given user.
-   *
-   * @param traceId
-   * @param {ITerminateAllRequest} request
-   * @return {Promise<ITerminateAllResponse>} Promise resolving to a response object indicating success or failure.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param request - Session termination request data.
+   * @returns Session termination result.
    */
   async terminateAllSessions(
     traceId: string,
+    serviceToken: string,
     request: ITerminateAllRequest,
   ): Promise<ITerminateAllResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.SESSION_TERMINATE_ALL,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
-   * Terminates all active sessions for a given user.
-   *
-   * @param traceId
-   * @param {ITerminateAllRequest} request
-   * @return {Promise<ITerminateAllResponse>} Promise resolving to a response object indicating success or failure.
+   * Terminates a specific session by its ID.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param request - Session termination request data.
+   * @returns Session termination result.
    */
   async terminateSessionById(
     traceId: string,
+    serviceToken: string,
     request: ITerminateSessionRequest,
   ): Promise<ITerminateSessionResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.SESSION_TERMINATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
    * Returns an array of active sessions for a given user.
-   *
-   * @param traceId
-   * @param {IActiveSessionsRequest} request
-   * @param serviceToken
-   * @return {Promise<IActiveSessionsResponse>} An object with the following properties:
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param request - Active sessions request data.
+   * @returns List of active sessions.
    */
   async getActiveSessions(
     traceId: string,
+    serviceToken: string,
     request: IActiveSessionsRequest,
-    serviceToken?: string,
   ): Promise<IActiveSessionsResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.GET_ACTIVE_SESSIONS,
-        await createRmqMessage(traceId, request, serviceToken),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
   /**
-   * Returns an array of session history for a given user.
-   *
-   * @param traceId
-   * @param {ISessionsHistoryRequest} request
-   * @return {Promise<ISessionsHistoryResponse>} An object with the following properties:
+   * Returns session history for a given user.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param request - Session history request data.
+   * @returns Session history result.
    */
   async getSessionsHistory(
     traceId: string,
+    serviceToken: string,
     request: ISessionsHistoryRequest,
   ): Promise<ISessionsHistoryResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.GET_SESSIONS_HISTORY,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
+  /**
+   * Returns sessions until a specific date for a given user.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @param request - Sessions until date request data.
+   * @returns Sessions until date result.
+   */
   async getSessionsUntilDate(
+    traceId: string,
+    serviceToken: string,
     request: ISessionUntilDateRequest,
   ): Promise<ISessionUntilDateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.GET_SESSIONS_UNTIL_DATE,
-        request,
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
+  /**
+   * Creates a new API key.
+   * @param request - API key creation data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns API key creation result.
+   */
   async apiKeyCreate(
     request: CreateApiKeyDto,
     traceId: string,
+    serviceToken: string,
   ): Promise<IApiKeyCreateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.API_KEY_CREATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
+  /**
+   * Updates an existing API key.
+   * @param request - API key update data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns API key update result.
+   */
   async apiKeyUpdate(
-    request: { id: string; dto: UpdateApiKeyDto },
+    request: { userId: string; id: string; dto: UpdateApiKeyDto },
     traceId: string,
+    serviceToken: string,
   ): Promise<IApiKeyCreateResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.API_KEY_UPDATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
+  /**
+   * Removes an API key by its ID.
+   * @param id - API key ID.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns API key removal result.
+   */
   async apiKeyRemove(
-    id: string,
+    request: { id: string; userId: string },
     traceId: string,
+    serviceToken: string,
   ): Promise<IApiKeyRemoveResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.API_KEY_DELETE,
-        await createRmqMessage(traceId, id),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 
-  async apiKeyList(traceId: string): Promise<IApiKeyListResponse> {
+  /**
+   * Returns a list of all API keys.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns List of API keys.
+   */
+  async apiKeyList(
+    traceId: string,
+    serviceToken: string,
+  ): Promise<IApiKeyListResponse> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.API_KEY_LIST,
-        await createRmqMessage(traceId),
+        await createRmqMessage(traceId, serviceToken),
       ),
     );
   }
 
+  /**
+   * Validates an API key.
+   * @param request - API key validation data.
+   * @param traceId - Trace identifier for request tracing in the system.
+   * @param serviceToken - Token for zero-trust authorization between services.
+   * @returns API key validation result.
+   */
   async apiKeyValidate(
     request: ApiKeyValidateDto,
     traceId: string,
-  ): Promise<{ status: boolean; message: string }> {
+    serviceToken: string,
+  ): Promise<{
+    status: boolean;
+    serviceToken: string;
+    user: { userId: string };
+    message: string;
+  }> {
     return await firstValueFrom(
       this.authClientProxy.send(
         AuthClientPatterns.API_KEY_VALIDATE,
-        await createRmqMessage(traceId, request),
+        await createRmqMessage(traceId, serviceToken, request),
       ),
     );
   }
 }
 
 export enum AuthClientPatterns {
-  AUTHENTICATE_NATIVE = 'aut:native',
+  AUTHENTICATE_NATIVE = 'auth:native',
   AUTHENTICATE_SOCIAL = 'auth:social',
   SESSION_CREATE = 'session:create',
   TOKENS_CREATE = 'tokens:create',

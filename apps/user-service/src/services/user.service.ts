@@ -1,8 +1,10 @@
 import { Cache } from '@nestjs/cache-manager';
 import { Injectable } from '@nestjs/common';
 import {
+  ApiKeyType,
   AuthClient,
   comparePassword,
+  decrypt,
   DefaultRole,
   hashPassword,
   ICreateConfirmationCodesResponse,
@@ -24,7 +26,7 @@ import {
 import type { PermissionEntity } from '@crypton-nestjs-kit/common/build/entities/user/permissions.entity';
 import type { RoleEntity } from '@crypton-nestjs-kit/common/build/entities/user/role.entity';
 import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
-import { Prisma } from '@crypton-nestjs-kit/prisma/src/shared/generated/shared-client';
+import { isUUID } from 'class-validator';
 import { v4 } from 'uuid';
 import { uuid } from 'uuidv4';
 
@@ -318,10 +320,19 @@ export class UserService {
 
   public async createConfirmationCodes(
     userId: v4,
-    permissionId: v4,
+    permissionId: string,
   ): Promise<ICreateConfirmationCodesResponse> {
     try {
+      const where: any[] = [];
       const data = await this.getUserById({ userId });
+
+      if (!isUUID(permissionId)) {
+        const permission = await this.prisma.permissions.findFirst({
+          where: { method: permissionId },
+        });
+
+        permissionId = permission.id;
+      }
 
       const filteredTwoFaMethods = data.user.twoFaPermissions.filter(
         (twoFaPermission) =>
@@ -358,72 +369,6 @@ export class UserService {
         error: e.message,
         message: 'Confirmation codes not sent',
         confirmationMethods: [],
-      };
-    }
-  }
-
-  public async nativeLogin(
-    data: INativeLoginRequest,
-  ): Promise<INativeLoginResponse> {
-    try {
-      const existingUser = await this.findExistingUser(
-        data.login,
-        UserStatus.ACTIVE,
-      );
-
-      if (!existingUser) {
-        return {
-          status: true,
-          message: 'User not found',
-          user: null,
-          tokens: null,
-        };
-      }
-
-      if (!(await comparePassword(data.password, existingUser.password))) {
-        return {
-          status: false,
-          message: 'Invalid password',
-          user: null,
-          tokens: null,
-        };
-      }
-
-      const { status, tokens, message } = await this.createAccessData({
-        userId: existingUser.id,
-        userAgent: data.userAgent,
-        userIp: data.userIp,
-        fingerprint: data.fingerprint,
-        country: data.country,
-        city: data.city,
-        traceId: data.traceId,
-      });
-
-      if (!status) {
-        return {
-          status: false,
-          message: 'Access token creation failed',
-          user: null,
-          tokens: null,
-        };
-      }
-
-      return {
-        status: true,
-        message: 'User authenticated successfully',
-        user: {
-          id: existingUser.id,
-          login: existingUser.login,
-        },
-        tokens,
-      };
-    } catch (e) {
-      return {
-        error: e.message,
-        status: false,
-        message: 'User authentication failed',
-        user: null,
-        tokens: null,
       };
     }
   }
@@ -531,56 +476,6 @@ export class UserService {
       password: userLoginMethod.User.password,
       login: userLoginMethod.login,
       role: userLoginMethod.User.UserRoles.map((r) => r.Roles.name).join(','),
-    };
-  }
-
-  private async createAccessData(data: ISessionCreateRequest): Promise<{
-    status: boolean;
-    message: string;
-    tokens: any;
-  }> {
-    const sessionData = await this.authClient.sessionCreate(
-      {
-        userId: data.userId,
-        userAgent: data.userAgent,
-        userIp: data.userIp,
-        role: data.role,
-        country: data.country,
-        fingerprint: data.fingerprint,
-        city: data.city,
-        traceId: data.traceId,
-      },
-      data.traceId,
-    );
-
-    if (!sessionData.status) {
-      return {
-        status: false,
-        message: 'Session creation failed',
-        tokens: null,
-      };
-    }
-
-    const tokensData = await this.authClient.tokensCreate(
-      {
-        userId: data.userId,
-        sessionId: sessionData.sessionId,
-      },
-      data.traceId,
-    );
-
-    if (!tokensData.status) {
-      return {
-        status: false,
-        message: 'Session creation failed',
-        tokens: null,
-      };
-    }
-
-    return {
-      status: true,
-      message: 'Access data created successfully',
-      tokens: tokensData.tokens,
     };
   }
 
@@ -903,23 +798,81 @@ export class UserService {
     }
   }
 
-  public async getPermissionsByRole(roleId: string): Promise<any> {
+  public async getUserByLoginSecure(
+    data: IGetUserByLoginRequest,
+  ): Promise<IGetUserByIdResponse> {
     try {
-      const CACHE_KEY = `rolePermissions:${roleId}`;
+      const CACHE_KEY = `getUserByLoginSecure:${data.login}`;
+
       const cachedData = await this.cacheManager.get(CACHE_KEY);
 
       if (cachedData) {
-        const data = JSON.parse(cachedData.toString());
-
         return {
           status: true,
-          message: 'Permissions found',
-          permissions: data.permissions,
+          message: 'User exists',
+          user: JSON.parse(cachedData.toString()),
         };
       }
 
+      const userSecure = await this.prisma.userLoginMethods.findFirst({
+        where: { login: data.login },
+        select: {
+          login: true,
+          method: true,
+          User: { select: { id: true } },
+        },
+      });
+
+      if (!userSecure) {
+        return {
+          status: false,
+          message: 'User not found',
+          user: null,
+        };
+      }
+
+      const safeUser = {
+        id: userSecure.User.id,
+        login: userSecure.login,
+        loginType: userSecure.method,
+      };
+
+      await this.cacheManager.set(
+        CACHE_KEY,
+        JSON.stringify(safeUser),
+        60 * 1000,
+      );
+
+      return {
+        status: true,
+        message: 'User exists',
+        user: safeUser,
+      };
+    } catch (e) {
+      return {
+        error: e.message,
+        status: false,
+        message: 'User not found',
+        user: null,
+      };
+    }
+  }
+
+  public async getPermissionsByRole(data: {
+    roleId: string;
+    type?: string;
+  }): Promise<any> {
+    try {
+      const where: any[] = [];
+
+      if (isUUID(data.roleId)) {
+        where.push({ id: data.roleId });
+      } else {
+        where.push({ name: data.roleId });
+      }
+
       const role = await this.prisma.roles.findUnique({
-        where: { id: roleId },
+        where: { id: data.roleId },
         include: {
           RolePermissions: {
             include: {
@@ -928,13 +881,41 @@ export class UserService {
           },
         },
       });
+      const CACHE_KEY = `rolePermissions:${role.id}`;
 
-      await this.cacheManager.set(CACHE_KEY, JSON.stringify(role), 10 * 1000);
+      let permissions: any = await this.cacheManager.get(CACHE_KEY);
+
+      permissions = undefined;
+
+      if (!permissions) {
+        const rolePermissions: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT p.*
+           FROM "RolePermissions" rp
+           JOIN "Permissions" p ON rp."permissionsId"::uuid = p.id::uuid
+           WHERE rp."rolesId" = $1 AND p."isPublic" = true;`,
+          [role.id],
+        );
+
+        permissions = rolePermissions.map((k) => ({
+          id: k.id,
+          nameCode: k.messagePattern,
+          method: k.method,
+          alias: k.alias,
+          description: k.description,
+          type: k.type,
+        }));
+
+        await this.cacheManager.set(CACHE_KEY, permissions, 10 * 1000);
+      }
+
+      if (data.type) {
+        permissions = permissions.filter((p) => p.type === data.type);
+      }
 
       return {
         status: true,
         message: 'Permissions found',
-        permissions: role?.RolePermissions?.map((rp) => rp.Permissions) || [],
+        permissions,
       };
     } catch (e) {
       return {

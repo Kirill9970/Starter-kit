@@ -8,6 +8,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { ControllerType } from '../../utils';
+
 @Unique(['messagePattern', 'method'])
 @Entity('Permissions')
 export class PermissionEntity extends BaseEntity {
@@ -22,6 +24,9 @@ export class PermissionEntity extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: false })
   public messagePattern!: string;
+
+  @Column({ type: 'enum', enum: ControllerType, default: ControllerType.READ })
+  public type!: ControllerType;
 
   @Column({ type: 'boolean', nullable: true })
   public isPublic!: boolean;

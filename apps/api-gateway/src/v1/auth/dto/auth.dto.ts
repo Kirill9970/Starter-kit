@@ -18,6 +18,7 @@ import {
 } from 'class-validator';
 import validator from 'validator';
 
+import { TwoFaCodesDto } from '../../../dto/base.dto';
 import { ErrorResponseDto } from '../../../dto/error-response-dto';
 import { BaseDto } from '../../../dto/response.dto';
 import { UserDto } from '../../user/dto/user.dto';
@@ -54,32 +55,6 @@ export function IsPhoneOrEmail(validationOptions?: any) {
       validator: IsPhoneOrEmailConstraint,
     });
   };
-}
-
-export class TwoFaCodesDto {
-  @ApiProperty({
-    description: 'Email 2fa code if security mode setups',
-    example: 0o00000,
-  })
-  @IsOptional()
-  @IsNumber()
-  readonly emailCode!: number;
-
-  @ApiProperty({
-    description: 'Phone 2fa code if security mode setups',
-    example: 0o00000,
-  })
-  @IsOptional()
-  @IsNumber()
-  readonly phoneCode!: number;
-
-  @ApiProperty({
-    description: 'Google 2fa code if security mode setups',
-    example: 0o00000,
-  })
-  @IsOptional()
-  @IsNumber()
-  readonly googleCode!: number;
 }
 
 export class RegisterDtoRequest {

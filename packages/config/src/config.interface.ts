@@ -108,6 +108,8 @@ export interface ConfigData {
 
   userService?: RmqOptions;
 
+  permissionService?: RmqOptions;
+
   oauth: OAuthConfig;
 
   notifyQueue: RedisConfig;

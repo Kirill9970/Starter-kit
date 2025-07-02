@@ -14,4 +14,5 @@ export * from './redisLocks';
 export * from './require-confirmation.decorator';
 export * from './require-confirmation.interceptor';
 export * from './service-jwt.interceptor';
+export * from './service-jwt.use-case';
 export * from './timeDelay';

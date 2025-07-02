@@ -12,10 +12,7 @@ import { API_KEY_METADATA } from '../decorators/api-key.decorator';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly authClient: AuthClient,
-  ) {}
+  constructor(private readonly authClient: AuthClient) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -24,13 +21,14 @@ export class ApiKeyGuard implements CanActivate {
       request.headers['api-key'] ||
       request.query.apiKey;
 
-    const correlationId = request.headers['correlationId'];
+    const traceId = request.headers['correlationId'];
     const ip =
       request.headers['x-forwarded-for'] || request.headers.host || request.ip;
 
     const validatedData = await this.authClient.apiKeyValidate(
       { rawKey: providedApiKey, ip },
-      correlationId,
+      traceId,
+      'api-gateway',
     );
 
     if (!validatedData.status) {

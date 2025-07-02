@@ -28,6 +28,8 @@ import {
   ITokenRefreshResponse,
   ITokenVerifyRequest,
   ITokenVerifyResponse,
+  PermissionClient,
+  ServiceJwtGenerator,
   SessionStatus,
   UserClient,
 } from '@crypton-nestjs-kit/common';
@@ -47,8 +49,9 @@ export class AuthService {
     private readonly cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly userClient: UserClient,
+    private readonly permissionClient: PermissionClient,
     private readonly authStrategyFactory: AuthStrategyFactory,
-    private readonly serviceJwtUseCase: ServiceJwtUseCase,
+    private readonly serviceJwtGenerator: ServiceJwtGenerator,
   ) {}
 
   /**
@@ -209,6 +212,14 @@ export class AuthService {
           userId: data.userId,
         },
         data.traceId,
+        await this.serviceJwtGenerator.generateServiceJwt({
+          subject: data.userId,
+          actor: 'auth-service',
+          issuer: 'auth-service',
+          audience: 'user',
+          type: 'service',
+          expiresIn: '5m',
+        }),
       );
 
       const sessionData = {
@@ -272,12 +283,20 @@ export class AuthService {
         sessionId: data.sessionId,
       };
 
+      // const accessToken = this.jwtService.sign(jwtPayload, {
+      //   expiresIn: this.configService.get().auth.access_token_expires_in,
+      // });
+      //
+      // const refreshToken = this.jwtService.sign(jwtPayload, {
+      //   expiresIn: this.configService.get().auth.refresh_token_expires_in,
+      // });
+
       const accessToken = this.jwtService.sign(jwtPayload, {
-        expiresIn: this.configService.get().auth.access_token_expires_in,
+        expiresIn: '1d',
       });
 
       const refreshToken = this.jwtService.sign(jwtPayload, {
-        expiresIn: this.configService.get().auth.refresh_token_expires_in,
+        expiresIn: '1d',
       });
 
       return {
@@ -450,21 +469,24 @@ export class AuthService {
         );
       }
 
-      const permissionsResult = await this.userClient.getPermissionsByRole(
-        session.role,
-        '0000',
-      );
-      const permissions = permissionsResult.permissions.map((k) => ({
-        id: k.id,
-        route: k.route,
-        method: k.method,
-        alias: k.alias,
-      }));
+      const permissionsResult =
+        await this.permissionClient.getPermissionsByRole(
+          { roleId: session.role },
+          '0000',
+        );
 
-      const serviceJwt = await this.serviceJwtUseCase.generateServiceJwt({
-        userId: session.userId,
-        serviceId: data.serviceId,
-        authType: 'jwtToken',
+      const permissions = permissionsResult.permissions.map(
+        (k) => k.messagePattern,
+      );
+
+      const serviceJwt = await this.serviceJwtGenerator.generateServiceJwt({
+        subject: session.userId,
+        actor: 'auth-service',
+        issuer: 'api-gateway',
+        audience: 'service',
+        type: 'access',
+        permissions,
+        expiresIn: '5m',
       });
 
       return {
@@ -473,7 +495,6 @@ export class AuthService {
         user: {
           userId: session.userId,
           role: session.role,
-          permissions,
         },
         sessionId: tokenData.sessionId,
         serviceJwt,

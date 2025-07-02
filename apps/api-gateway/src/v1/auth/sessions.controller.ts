@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -18,11 +11,11 @@ import { Authorization } from '../../decorators/authorization.decorator';
 import { CorrelationIdFromRequest } from '../../decorators/correlation-id-from-request.decorator';
 import { ServiceTokenFromRequest } from '../../decorators/service-token-from-request.decorator';
 import { UserIdFromRequest } from '../../decorators/user-id-from-request.decorator';
-import { RolesGuard } from '../../guards/role.guard';
 
 import {
   GetSessionsHistoryDto,
   SessionResponseDto,
+  TerminateAllSessionsDto,
   TerminateSessionDto,
 } from './dto/session.dto';
 
@@ -30,7 +23,6 @@ import {
 
 @ApiTags('Sessions')
 @Controller('v1/auth/sessions')
-@UseGuards(RolesGuard)
 @ApiBearerAuth()
 export class SessionsController {
   constructor(private readonly authClient: AuthClient) {}
@@ -51,15 +43,23 @@ export class SessionsController {
     @UserIdFromRequest() userId: string,
     @ServiceTokenFromRequest() serviceToken: string,
   ): Promise<SessionResponseDto> {
-    const sessions = await this.authClient.getActiveSessions(traceId, {
-      userId,
-    });
+    try {
+      const sessions = await this.authClient.getActiveSessions(
+        traceId,
+        serviceToken,
+        {
+          userId,
+        },
+      );
 
-    return {
-      sessions: sessions.activeSessions,
-      message: 'Sessions found',
-      count: sessions.count,
-    };
+      return {
+        sessions: sessions.activeSessions,
+        message: 'Sessions found',
+        count: sessions.count,
+      };
+    } catch (e) {
+      console.log(e);
+    }
   }
 
   @ApiOperation({
@@ -76,16 +76,21 @@ export class SessionsController {
   async getSessionsHistory(
     @CorrelationIdFromRequest() traceId: string,
     @UserIdFromRequest() userId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
     @Query() query: GetSessionsHistoryDto,
   ): Promise<SessionResponseDto> {
     const { page = 1, limit = 10 } = query;
 
-    const sessionsData = await this.authClient.getSessionsHistory(traceId, {
-      page,
-      limit,
-      userId,
+    const sessionsData = await this.authClient.getSessionsHistory(
       traceId,
-    });
+      serviceToken,
+      {
+        page,
+        limit,
+        userId,
+        traceId,
+      },
+    );
 
     return {
       sessions: sessionsData.sessions,
@@ -103,15 +108,17 @@ export class SessionsController {
     description: 'Session successfully terminated',
   })
   @Authorization(true)
-  @Delete('terminate')
+  @Delete('terminate/:id')
   async terminateSession(
     @CorrelationIdFromRequest() traceId: string,
     @UserIdFromRequest() userId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
+    @Param('id') id: string,
     @Body() body: TerminateSessionDto,
   ): Promise<{ message: string }> {
-    await this.authClient.terminateSessionById(traceId, {
+    await this.authClient.terminateSessionById(traceId, serviceToken, {
       userId,
-      sessionId: body.sessionId,
+      sessionId: id,
     });
 
     return { message: 'Session terminated successfully' };
@@ -130,8 +137,12 @@ export class SessionsController {
   async terminateAllSessions(
     @CorrelationIdFromRequest() traceId: string,
     @UserIdFromRequest() userId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
+    @Body() body: TerminateAllSessionsDto,
   ): Promise<{ message: string }> {
-    await this.authClient.terminateAllSessions(traceId, { userId });
+    await this.authClient.terminateAllSessions(traceId, serviceToken, {
+      userId,
+    });
 
     return { message: 'All sessions terminated successfully' };
   }

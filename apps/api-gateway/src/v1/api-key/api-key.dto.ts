@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+// import { BaseRequestDto } from '@crypton-nestjs-kit/common';
 import {
   IsArray,
   IsBoolean,
@@ -6,7 +7,10 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { TwoFaCodesDto } from '../../dto/base.dto';
 
 export enum ApiKeyType {
   READ = 'read',
@@ -36,6 +40,16 @@ export class CreateApiKeyDto {
   @IsArray()
   @IsOptional()
   permissions?: string[];
+
+  @ApiProperty({
+    description: 'Optional 2FA codes for API key creation',
+    required: false,
+    type: () => TwoFaCodesDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TwoFaCodesDto)
+  twoFaCodes?: TwoFaCodesDto;
 }
 
 export class UpdateApiKeyDto {
@@ -70,6 +84,28 @@ export class UpdateApiKeyDto {
   @IsArray()
   @IsOptional()
   permissions?: string[];
+
+  @ApiProperty({
+    description: 'Optional 2FA codes for API key update',
+    required: false,
+    type: () => TwoFaCodesDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TwoFaCodesDto)
+  twoFaCodes?: TwoFaCodesDto;
+}
+
+export class DeleteApiKeyDto {
+  @ApiProperty({
+    description: 'Optional 2FA codes for API key delete',
+    required: false,
+    type: () => TwoFaCodesDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TwoFaCodesDto)
+  twoFaCodes?: TwoFaCodesDto;
 }
 
 export class ApiKeyResponseDto {

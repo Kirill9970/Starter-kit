@@ -3,6 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   AuthClientPatterns,
   ControllerMeta,
+  ControllerType,
   IActiveSessionsRequest,
   IActiveSessionsResponse,
   INativeAuthCredentials,
@@ -34,12 +35,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Нативная аутентификация (email/password)
+   * Native authentication (email/password)
    */
   @ControllerMeta({
-    name: 'Аутентификация пользователя',
-    description: 'Аутентификация пользователя с помощью email и пароля 1',
+    name: 'User authentication',
+    description: 'Authenticate user using email and password',
     isPublic: true,
+    type: ControllerType.WRITE,
+    needsPermission: false,
   })
   @MessagePattern(AuthClientPatterns.AUTHENTICATE_NATIVE)
   public async authenticateNative(data: {
@@ -64,8 +67,15 @@ export class AuthController {
   }
 
   /**
-   * OAuth аутентификация
+   * OAuth authentication
    */
+  @ControllerMeta({
+    name: 'OAuth authentication',
+    description: 'Authenticate user using OAuth provider',
+    isPublic: true,
+    type: ControllerType.WRITE,
+    needsPermission: false,
+  })
   @MessagePattern(AuthClientPatterns.AUTHENTICATE_SOCIAL)
   public async authenticateOAuth(data: {
     credentials: IOAuthAuthCredentials;
@@ -78,9 +88,10 @@ export class AuthController {
   }
 
   @ControllerMeta({
-    name: 'Создание сессии',
-    description: 'Создание сессии пользователя',
+    name: 'Create session',
+    description: 'Create a new user session',
     isPublic: false,
+    type: ControllerType.WRITE,
   })
   @MessagePattern(AuthClientPatterns.SESSION_CREATE)
   public async createSession(
@@ -89,13 +100,26 @@ export class AuthController {
     return await this.authService.createSession(data);
   }
 
+  @ControllerMeta({
+    name: 'Create tokens',
+    description: 'Create access and refresh tokens',
+    isPublic: false,
+    type: ControllerType.WRITE,
+  })
   @MessagePattern(AuthClientPatterns.TOKENS_CREATE)
-  public async createToken(
+  public async createTokens(
     data: ITokenCreateRequest,
   ): Promise<ITokenCreateResponse> {
     return await this.authService.createTokens(data);
   }
 
+  @ControllerMeta({
+    name: 'Verify token',
+    description: 'Verify access token',
+    isPublic: false,
+    needsPermission: false,
+    type: ControllerType.READ,
+  })
   @MessagePattern(AuthClientPatterns.TOKEN_VERIFY)
   public async verifyToken(
     data: ITokenVerifyRequest,
@@ -103,6 +127,14 @@ export class AuthController {
     return await this.authService.verifyToken(data);
   }
 
+  @ControllerMeta({
+    name: 'Refresh token',
+    description: 'Refresh access tokens',
+    isPublic: true,
+    type: ControllerType.WRITE,
+    needsPermission: false,
+    needsConfirmation: false,
+  })
   @MessagePattern(AuthClientPatterns.REFRESH_TOKEN)
   public async refreshToken(
     data: ITokenRefreshRequest,
@@ -110,6 +142,12 @@ export class AuthController {
     return await this.authService.refreshToken(data);
   }
 
+  @ControllerMeta({
+    name: 'Terminate all sessions',
+    description: 'Terminate all user sessions',
+    isPublic: true,
+    type: ControllerType.WRITE,
+  })
   @MessagePattern(AuthClientPatterns.SESSION_TERMINATE_ALL)
   public async terminateAllSession(
     data: ITerminateAllRequest,
@@ -117,6 +155,12 @@ export class AuthController {
     return await this.authService.terminateAllSessions(data);
   }
 
+  @ControllerMeta({
+    name: 'Terminate session',
+    description: 'Terminate session by id',
+    isPublic: true,
+    type: ControllerType.WRITE,
+  })
   @MessagePattern(AuthClientPatterns.SESSION_TERMINATE)
   public async terminateSessionById(
     data: ITerminateSessionRequest,
@@ -124,6 +168,12 @@ export class AuthController {
     return await this.authService.terminateSession(data);
   }
 
+  @ControllerMeta({
+    name: 'Get active sessions',
+    description: 'Get active sessions for user',
+    isPublic: true,
+    type: ControllerType.READ,
+  })
   @MessagePattern(AuthClientPatterns.GET_ACTIVE_SESSIONS)
   public async getActiveSessions(
     data: IActiveSessionsRequest,
@@ -131,6 +181,12 @@ export class AuthController {
     return await this.authService.getActiveSessions(data);
   }
 
+  @ControllerMeta({
+    name: 'Get sessions history',
+    description: 'Get sessions history for user',
+    isPublic: true,
+    type: ControllerType.READ,
+  })
   @MessagePattern(AuthClientPatterns.GET_SESSIONS_HISTORY)
   public async getSessionsHistory(
     data: ISessionsHistoryRequest,
@@ -138,6 +194,12 @@ export class AuthController {
     return await this.authService.getSessionsHistory(data);
   }
 
+  @ControllerMeta({
+    name: 'Get sessions until date',
+    description: 'Get user sessions until a specific date',
+    isPublic: false,
+    type: ControllerType.READ,
+  })
   @MessagePattern(AuthClientPatterns.GET_SESSIONS_UNTIL_DATE)
   public async getSessionsUntilDate(
     data: ISessionUntilDateRequest,

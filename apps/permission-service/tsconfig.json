@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "es2017",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false, /* Enables strict null checks. Enable this when you have time to refactoring code.*/
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": false, /* Enables strict property initialization checks. Enable this when you have time to refactoring code. */
+    "noImplicitAny": false, /* Enables noImplicitAny checks. Enable this when you have time to refactoring code.*/
+    "strict": false, /* Enables strict checks. Enable this when you have time to refactoring code. */
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "esModuleInterop": true,                   /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */
+    "resolveJsonModule": true,
+    "noFallthroughCasesInSwitch": false,
+    "declaration": true,
+    "declarationMap": true
+  },
+  "exclude": ["node_modules", "dist"]
+}

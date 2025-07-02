@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsDateString,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+import { TwoFaCodesDto } from '../../../dto/base.dto';
 
 export class SessionInfoDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -46,11 +54,26 @@ export class SessionResponseDto {
 
 export class TerminateSessionDto {
   @ApiProperty({
-    description: 'Session ID to terminate',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'Optional 2FA codes for session termination',
+    required: false,
+    type: () => TwoFaCodesDto,
   })
-  @IsString()
-  sessionId: string;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TwoFaCodesDto)
+  twoFaCodes?: TwoFaCodesDto;
+}
+
+export class TerminateAllSessionsDto {
+  @ApiProperty({
+    description: 'Optional 2FA codes for session termination',
+    required: false,
+    type: () => TwoFaCodesDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TwoFaCodesDto)
+  twoFaCodes?: TwoFaCodesDto;
 }
 
 export class GetSessionsHistoryDto {

@@ -1,12 +1,19 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import {
+  ApiKeyEntity,
+  ClientPermissionModule,
   ClientUserModule,
+  loadPermissionClientOptions,
   loadUserClientOptions,
   PermissionsRegistrarModule,
   RequireConfirmationInterceptor,
+  ServiceJwtGenerator,
+  ServiceJwtInterceptor,
+  SessionEntity,
   UserClient,
 } from '@crypton-nestjs-kit/common';
 import {
@@ -30,7 +37,6 @@ import { AuthService } from './services/auth/auth.service';
 import { AuthStrategyFactory } from './services/auth/auth-strategy-factory.service';
 // Стратегии
 import { NativeStrategy } from './services/auth/strategies/native.strategy';
-import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
 
 @Module({
   imports: [
@@ -38,6 +44,11 @@ import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
     ConfigModule,
     AppLoggerModule,
     ClientUserModule.forRoot(loadUserClientOptions()),
+    ClientPermissionModule.forRoot(loadPermissionClientOptions()),
+    TypeOrmModule.forFeature([SessionEntity, ApiKeyEntity]),
+    DBModule.forRoot({
+      entities: [SessionEntity, ApiKeyEntity],
+    }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -77,10 +88,14 @@ import { ServiceJwtUseCase } from './use-cases/service-jwt.use-case';
     // Strategy's
     NativeStrategy,
     // Use cases
-    ServiceJwtUseCase,
+    ServiceJwtGenerator,
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ServiceJwtInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

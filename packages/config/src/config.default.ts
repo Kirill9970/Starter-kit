@@ -98,6 +98,16 @@ export const DEFAULT_CONFIG: ConfigData = {
       transport: Transport.RMQ,
     },
   },
+  permissionService: {
+    options: {
+      urls: [''],
+      queue: '',
+      queueOptions: {
+        durable: false,
+      },
+    },
+    transport: Transport.RMQ,
+  },
   throttler: {
     ttl: 6000,
     limit: 3,

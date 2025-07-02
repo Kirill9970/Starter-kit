@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import {
   acquireLock,
+  ControllerType,
   CustomError,
   ExtendedHttpStatus,
   UserClient,
@@ -31,19 +32,13 @@ import { ServiceTokenFromRequest } from '../../decorators/service-token-from-req
 import { UserIdFromRequest } from '../../decorators/user-id-from-request.decorator';
 import { UserRoleFromRequest } from '../../decorators/user-role-from-request';
 import { UsersMeResponseDto } from '../../dto/user-me-respone.dto';
-import { ApiKeyGuard } from '../../guards/api-key.guard';
-import { RolesGuard } from '../../guards/role.guard';
 
 import {
   CreateConfirmationCodesDto,
   UpdatePermissionDto,
 } from './dto/request/users.request.dto';
-
-// TODO: Структурировать и привести к общему виду сваггер документацию
-
 @ApiTags('User')
 @Controller('v1/users')
-@UseGuards(RolesGuard)
 @UseInterceptors(ClassSerializerInterceptor)
 export class UserController {
   private readonly redisClient: RedisClientType;
@@ -65,17 +60,22 @@ export class UserController {
   async updatePermissions(
     @UserIdFromRequest() userId: string,
     @CorrelationIdFromRequest() traceId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
     @Body() body: UpdatePermissionDto,
   ): Promise<any> {
-    const data = await this.userClient.updateTwoFaPermissions({
-      userId,
-      twoFaPermissions: [
-        {
-          permissionId: body.permissionId,
-          confirmationMethodId: body.confirmationMethodId,
-        },
-      ],
-    });
+    const data = await this.userClient.updateTwoFaPermissions(
+      traceId,
+      serviceToken,
+      {
+        userId,
+        twoFaPermissions: [
+          {
+            permissionId: body.permissionId,
+            confirmationMethodId: body.confirmationMethodId,
+          },
+        ],
+      },
+    );
 
     if (!data.status) {
       throw new CustomError(
@@ -92,6 +92,11 @@ export class UserController {
 
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Getting all of user confirmation methods' })
+  @ApiHeader({
+    name: 'x-api-key',
+    description: 'API Key. Необходим для доступа к этому эндпоинту',
+    required: false,
+  })
   @ApiOkResponse({
     description: 'User info',
     type: UsersMeResponseDto,
@@ -101,17 +106,19 @@ export class UserController {
   async getConfirmationsMethods(
     @UserIdFromRequest() userId: string,
     @CorrelationIdFromRequest() traceId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
   ): Promise<any> {
     const data = await this.userClient.getUserConfirmationMethods(
       {
         userId,
       },
       traceId,
+      serviceToken,
     );
 
     if (!data.status) {
       throw new CustomError(
-        ExtendedHttpStatus.FORBIDDEN,
+        ExtendedHttpStatus.FOUND,
         "Permissions don't created",
       );
     }
@@ -133,6 +140,7 @@ export class UserController {
   async createConfirmationCodes(
     @UserIdFromRequest() userId: string,
     @CorrelationIdFromRequest() traceId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
     @Body() body: CreateConfirmationCodesDto,
   ): Promise<any> {
     const lockData = await acquireLock(
@@ -152,6 +160,7 @@ export class UserController {
     const data = await this.userClient.createConfirmationCode(
       { userId, permissionId: body.permissionId },
       traceId,
+      serviceToken,
     );
 
     if (!data.status) {
@@ -182,8 +191,13 @@ export class UserController {
   async getAllowedPermissions(
     @UserRoleFromRequest() roleId: string,
     @CorrelationIdFromRequest() traceId: string,
+    @ServiceTokenFromRequest() serviceToken: string,
   ): Promise<any> {
-    const data = await this.userClient.getPermissionsByRole(roleId, traceId);
+    const data = await this.userClient.getPermissionsByRole(
+      { roleId, type: ControllerType.WRITE },
+      traceId,
+      serviceToken,
+    );
 
     if (!data.status) {
       throw new CustomError(

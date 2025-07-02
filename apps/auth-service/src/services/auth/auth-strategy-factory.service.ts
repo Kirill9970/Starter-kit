@@ -71,7 +71,6 @@ export class AuthStrategyFactory {
     const strategy = this.createStrategyFromCredentials(credentials);
 
     if ('provider' in credentials && 'accessToken' in credentials) {
-      // Для OAuth стратегий вызываем validateOAuth
       return await (strategy as any).validateOAuth(credentials);
     }
 

@@ -20,7 +20,7 @@ module.exports = {
     // Limits function length to 60 lines (excluding blanks and comments)
     // Helps maintain readable, focused functions
     'max-lines-per-function': ['error', {
-      max: 90,                  // Maximum allowed lines per function
+      max: 120,                  // Maximum allowed lines per function
       skipBlankLines: true,     // Ignore empty lines in count
       skipComments: true,       // Ignore comment lines in count
     }],

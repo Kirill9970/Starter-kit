@@ -8,9 +8,9 @@ import {
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { PATTERN_METADATA } from '@nestjs/microservices/constants';
 
-import { UserClient } from '../clients';
+import { PermissionClient } from '../clients';
 
-import { CONTROLLER_META } from './controller-meta.decorator';
+import { CONTROLLER_META, ControllerType } from './controller-meta.decorator';
 
 @Injectable()
 export class PermissionsRegistrar implements OnModuleInit {
@@ -20,53 +20,34 @@ export class PermissionsRegistrar implements OnModuleInit {
     @Inject(DiscoveryService)
     private readonly discoveryService: DiscoveryService,
     @Inject(MetadataScanner)
-    private readonly metadataScanner: MetadataScanner, // @InjectRepository(PermissionEntity) // private readonly permissionRepository: Repository<PermissionEntity>,
-    @Inject(forwardRef(() => UserClient))
-    private readonly userClient: UserClient,
+    private readonly metadataScanner: MetadataScanner,
+    @Inject(forwardRef(() => PermissionClient))
+    private readonly permissionClient: PermissionClient,
   ) {}
 
   async onModuleInit(): Promise<void> {
     try {
-      const { permissions } = await this.userClient.getPermissionList(
-        '5555555',
+      const { permissions } = await this.permissionClient.getPermissionList(
+        'service',
       );
 
       const permissionsList = this.extractPermissionsFromControllers();
-
-      // console.log('permissionsList', permissionsList);
 
       const updatedPermissions = this.filterUpdatedPermissions(
         permissionsList,
         permissions,
       );
 
-      console.log('updatedPermissions', updatedPermissions);
-
       if (updatedPermissions.length > 0) {
-        await this.userClient.registerPermissions(
+        await this.permissionClient.registerPermissions(
           { permissions: updatedPermissions },
-          '5555555',
+          'service',
         );
       }
 
-      // for (const permission of permissionsList) {
-      //   // Проверяем, есть ли уже такой permission
-      //   const exists = await this.permissionRepository.findOne({
-      //     where: { alias: permission.alias },
-      //   });
-      //
-      //   if (!exists) {
-      //     await this.permissionRepository.save(permission);
-      //   } else {
-      //     // Можно обновлять описание/паттерн если нужно
-      //     await this.permissionRepository.update(
-      //       { id: exists.id },
-      //       { ...permission },
-      //     );
-      //   }
-      // }
-
-      this.logger.log(`Permissions registered: ${permissionsList.length}`);
+      this.logger.log(
+        `Permissions registered: ${permissionsList.length} | updated: ${updatedPermissions.length}`,
+      );
     } catch (e) {
       this.logger.error('Failed to register permissions', e);
     }
@@ -78,6 +59,7 @@ export class PermissionsRegistrar implements OnModuleInit {
     messagePattern: string;
     description: string;
     isPublic: boolean;
+    type: string;
   }> {
     const controllers = this.discoveryService.getControllers();
     const permissionsList: Array<{
@@ -86,6 +68,7 @@ export class PermissionsRegistrar implements OnModuleInit {
       messagePattern: string;
       description: string;
       isPublic: boolean;
+      type: string;
     }> = [];
 
     for (const controller of controllers) {
@@ -106,6 +89,7 @@ export class PermissionsRegistrar implements OnModuleInit {
               messagePattern: messagePattern[0],
               description: permissionMeta?.description || null,
               isPublic: !!permissionMeta?.isPublic,
+              type: permissionMeta?.type || ControllerType.READ,
             });
           }
         });
@@ -121,6 +105,7 @@ export class PermissionsRegistrar implements OnModuleInit {
       messagePattern: string;
       description: string;
       isPublic: boolean;
+      type: string;
     }>,
     existingPermissions: Array<{
       method: string;
@@ -128,6 +113,7 @@ export class PermissionsRegistrar implements OnModuleInit {
       messagePattern: string;
       description: string;
       isPublic: boolean;
+      type: string;
     }>,
   ): Array<{
     method: string;
@@ -135,19 +121,26 @@ export class PermissionsRegistrar implements OnModuleInit {
     messagePattern: string;
     description: string;
     isPublic: boolean;
+    type: string;
   }> {
+    // Оптимизация: строим Map для быстрого поиска по messagePattern
+    const existingMap = new Map<string, (typeof existingPermissions)[0]>();
+
+    for (const p of existingPermissions) {
+      existingMap.set(p.messagePattern, p);
+    }
+
     return permissionsList.filter((permission) => {
-      const existingPermission = existingPermissions.find(
-        (p) => p.messagePattern === permission.messagePattern,
-      );
+      const existingPermission = existingMap.get(permission.messagePattern);
 
       return (
         !existingPermission ||
         existingPermission.method !== permission.method ||
-        // existingPermission.alias !== permission.alias ||
+        existingPermission.alias !== permission.alias ||
         existingPermission.messagePattern !== permission.messagePattern ||
         existingPermission.description !== permission.description ||
-        existingPermission.isPublic !== permission.isPublic
+        existingPermission.isPublic !== permission.isPublic ||
+        existingPermission.type !== permission.type
       );
     });
   }

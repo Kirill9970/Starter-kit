@@ -14,7 +14,6 @@ export enum ApiKeyType {
 
 export class CreateApiKeyDto {
   @IsString()
-  @IsOptional()
   userId?: string;
 
   @IsEnum(ApiKeyType)
