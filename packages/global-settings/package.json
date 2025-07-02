@@ -27,8 +27,7 @@
   },
   "dependencies": {
     "@nestjs/schedule": "^4.0.2",
-    "@nestjs/typeorm": "^10.0.2",
-    "typeorm": "^0.3.20",
+    "@crypton-nestjs-kit/prisma": "workspace:^1.0.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

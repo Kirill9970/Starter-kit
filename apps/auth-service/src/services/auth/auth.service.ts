@@ -1,14 +1,11 @@
 import { Cache } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
-  ApiKeyType,
   AUTH_ERROR_CODES,
   AuthCredentials,
   AuthenticationError,
   AuthErrorMessages,
-  decrypt,
   IActiveSessionsRequest,
   IActiveSessionsResponse,
   ICachedSessionData,
@@ -33,20 +30,18 @@ import {
   ITokenVerifyResponse,
   PermissionClient,
   ServiceJwtGenerator,
-  SessionEntity,
   SessionStatus,
   UserClient,
 } from '@crypton-nestjs-kit/common';
 import { ConfigService } from '@crypton-nestjs-kit/config';
-import { In, LessThan, Repository } from 'typeorm';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 
 import { AuthStrategyFactory } from './auth-strategy-factory.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(SessionEntity)
-    private readonly sessionRepo: Repository<SessionEntity>,
+    private readonly prisma: SharedPrismaService,
     @Inject(JwtService)
     private readonly jwtService: JwtService,
     private readonly cacheManager: Cache,
@@ -197,7 +192,7 @@ export class AuthService {
   ): Promise<ISessionCreateResponse> {
     try {
       // Check active sessions limit
-      const activeSessions = await this.sessionRepo.count({
+      const activeSessions = await this.prisma.session.count({
         where: { userId: data.userId, status: SessionStatus.ACTIVE },
       });
 
@@ -235,9 +230,7 @@ export class AuthService {
         city: data.city,
       };
 
-      const session = await this.sessionRepo.save(
-        this.sessionRepo.create(sessionData),
-      );
+      const session = await this.prisma.session.create({ data: sessionData });
 
       const cacheKey = `auth:${session.id}`;
 
@@ -337,7 +330,7 @@ export class AuthService {
         );
       }
 
-      const sessions = await this.sessionRepo.find({
+      const sessions = await this.prisma.session.findMany({
         where: { userId: data.userId, status: SessionStatus.ACTIVE },
       });
 
@@ -352,10 +345,10 @@ export class AuthService {
         await this.cacheManager.del(`auth:${session.id}`);
       }
 
-      await this.sessionRepo.update(
-        { userId: data.userId, status: SessionStatus.ACTIVE },
-        { status: SessionStatus.TERMINATED },
-      );
+      await this.prisma.session.updateMany({
+        where: { userId: data.userId, status: SessionStatus.ACTIVE },
+        data: { status: SessionStatus.TERMINATED },
+      });
 
       return {
         status: true,
@@ -390,7 +383,7 @@ export class AuthService {
     data: ITerminateSessionRequest,
   ): Promise<ITerminateSessionResponse> {
     try {
-      const session = await this.sessionRepo.findOne({
+      const session = await this.prisma.session.findFirst({
         where: {
           id: data.sessionId,
           userId: data.userId,
@@ -407,13 +400,15 @@ export class AuthService {
 
       await this.cacheManager.del(`auth:${session.id}`);
 
-      session.status = SessionStatus.TERMINATED;
-      await this.sessionRepo.save(session);
+      const updatedSession = await this.prisma.session.update({
+        where: { id: session.id },
+        data: { status: SessionStatus.TERMINATED },
+      });
 
       return {
         status: true,
         message: 'Session terminated',
-        session,
+        session: updatedSession,
       };
     } catch (error) {
       let errorCode = AUTH_ERROR_CODES.SESSION_TERMINATION_FAILED;
@@ -605,7 +600,7 @@ export class AuthService {
     try {
       const { userId } = data;
 
-      const activeSessionsCount = await this.sessionRepo.count({
+      const activeSessionsCount = await this.prisma.session.count({
         where: { userId, status: SessionStatus.ACTIVE },
       });
 
@@ -616,7 +611,7 @@ export class AuthService {
         );
       }
 
-      const activeSessions = await this.sessionRepo.find({
+      const activeSessions = await this.prisma.session.findMany({
         where: { userId, status: SessionStatus.ACTIVE },
       });
 
@@ -658,7 +653,7 @@ export class AuthService {
     try {
       const { limit, page, userId } = data;
 
-      const sessionsCount = await this.sessionRepo.count({
+      const sessionsCount = await this.prisma.session.count({
         where: { userId },
       });
 
@@ -669,21 +664,23 @@ export class AuthService {
         );
       }
 
-      const sessions = await this.sessionRepo.find({
-        select: [
-          'id',
-          'userId',
-          'userIp',
-          'userAgent',
-          'country',
-          'city',
-          'fingerprint',
-          'status',
-        ],
+      const sessions = await this.prisma.session.findMany({
+        select: {
+          id: true,
+          userId: true,
+          userIp: true,
+          userAgent: true,
+          country: true,
+          city: true,
+          fingerprint: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
         where: { userId },
         take: limit,
         skip: (page - 1) * limit,
-        order: { createdAt: 'DESC' },
+        orderBy: { createdAt: 'desc' },
       });
 
       return {
@@ -719,17 +716,18 @@ export class AuthService {
       const { userId, date, limit, page } = data;
 
       const [sessions, count] = await Promise.all([
-        this.sessionRepo.find({
+        this.prisma.session.findMany({
           where: {
-            createdAt: LessThan(date || new Date()),
             userId,
+            createdAt: { lt: date || new Date() },
           },
           skip: ((page || 1) - 1) * (limit || 0) || 0,
           take: limit || 10,
         }),
-        this.sessionRepo.count({
+        this.prisma.session.count({
           where: {
-            createdAt: LessThan(date),
+            userId,
+            createdAt: { lt: date || new Date() },
           },
         }),
       ]);
@@ -758,8 +756,10 @@ export class AuthService {
     try {
       const { ids } = data;
 
-      await this.sessionRepo.delete({
-        id: In(ids),
+      await this.prisma.session.deleteMany({
+        where: {
+          id: { in: ids },
+        },
       });
 
       return {
@@ -813,7 +813,7 @@ export class AuthService {
         return sessionData;
       }
 
-      const session = await this.sessionRepo.findOne({
+      const session = await this.prisma.session.findFirst({
         where: { id: sessionId, status: SessionStatus.ACTIVE },
       });
 

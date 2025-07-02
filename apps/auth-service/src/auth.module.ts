@@ -1,10 +1,8 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, Reflector } from '@nestjs/core';
-import { JwtModule, JwtService } from '@nestjs/jwt';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import {
-  ApiKeyEntity,
   ClientPermissionModule,
   ClientUserModule,
   loadPermissionClientOptions,
@@ -13,15 +11,19 @@ import {
   RequireConfirmationInterceptor,
   ServiceJwtGenerator,
   ServiceJwtInterceptor,
-  SessionEntity,
   UserClient,
 } from '@crypton-nestjs-kit/common';
-import { ConfigModule, ConfigService } from '@crypton-nestjs-kit/config';
-import { DBModule } from '@crypton-nestjs-kit/database';
+import {
+  AuthConfigModule,
+  AuthConfigService,
+  ConfigModule,
+  ConfigService,
+} from '@crypton-nestjs-kit/config';
 import {
   AppLoggerModule,
   LoggingInterceptor,
 } from '@crypton-nestjs-kit/logger';
+import { SharedPrismaModule } from '@crypton-nestjs-kit/prisma';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 
@@ -40,10 +42,6 @@ import { NativeStrategy } from './services/auth/strategies/native.strategy';
     AppLoggerModule,
     ClientUserModule.forRoot(loadUserClientOptions()),
     ClientPermissionModule.forRoot(loadPermissionClientOptions()),
-    TypeOrmModule.forFeature([SessionEntity, ApiKeyEntity]),
-    DBModule.forRoot({
-      entities: [SessionEntity, ApiKeyEntity],
-    }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -66,6 +64,13 @@ import { NativeStrategy } from './services/auth/strategies/native.strategy';
           url: redis.url,
         } as RedisClientOptions;
       },
+    }),
+    SharedPrismaModule.forRootAsync({
+      imports: [AuthConfigModule],
+      inject: [AuthConfigService],
+      useFactory: (cfg: AuthConfigService) => ({
+        databaseUrl: cfg.get().prisma.sharedDatabaseUrl,
+      }),
     }),
   ],
   controllers: [AuthController, ApiKeyController],

@@ -49,6 +49,9 @@ Create a `.env` file in the service root directory with the following configurat
 # Environment
 NODE_ENV=local
 
+# Encryption key
+API_KEY_ENCRYPTION_SECRET=
+
 # Redis Configuration
 REDIS_URL=redis://:password@localhost:6379/0
 
@@ -59,9 +62,12 @@ DB_USERNAME=app_user
 DB_PASSWORD=your_password
 DB_PORT=5433
 
+BATCH_DATABASE_URL=
+SHARED_DATABASE_URL=
+
 # RabbitMQ Configuration
-RMQ_URL=amqp://@localhost:5672
-RMQ_QUEUE=batch_service
+BATCH_SERVICE_RMQ_URL=amqp://@localhost:5672
+BATCH_SERVICE_RMQ_QUEUE=batch_service
 
 # Batch Processing Settings
 BATCH_PROCESS_OPERATION_INTERVAL=5000
@@ -74,11 +80,13 @@ LOG_LEVEL=info
 ## Running the Application
 
 ### Using Docker
+
 ```bash
 $ docker compose up
 ```
 
 ### Local Development
+
 ```bash
 # development
 $ pnpm run start
@@ -105,14 +113,17 @@ src/
 ## How It Works
 
 ### Operation Collection
+
 - The service retrieves records from the `BatchOperations` table at intervals specified by `BATCH_PROCESS_OPERATION_INTERVAL`
 - The number of operations processed is limited by `BATCH_PROCESS_OPERATION_LIMIT`
 
 ### SQL Query Execution
+
 - Forms a single SQL query that executes within a transaction
 - Falls back to individual operation execution if the batch query fails
 
 ### Status Notification
+
 - Sends notifications to other services upon completion of batch operations
 
 ## Service Integration
@@ -120,6 +131,7 @@ src/
 ### Available Methods
 
 1. `createOperation(request: ICreateBatchOperationRequest): Promise<ICreateBatchOperationResponse>`
+
    - Adds a new operation to the Batch Service queue
    - Creates a new record in the `BatchOperations` table for processing in the next batch
 
@@ -130,6 +142,7 @@ src/
 ## API Documentation
 
 The service exposes its API documentation through Swagger. Once running, you can access it at:
+
 ```
 http://localhost:3000/api/docs
 ```

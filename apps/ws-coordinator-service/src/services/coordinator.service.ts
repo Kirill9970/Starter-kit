@@ -1,36 +1,52 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { WsCoordinatorPrismaService } from '@crypton-nestjs-kit/prisma';
 import {
   IGetServiceRequest,
   IGetServiceResponse,
   IRegisterServiceRequest,
   IRegisterServiceResponse,
-  ServiceEntity,
+  Service,
   ServiceStatus,
+  ServiceType,
 } from '@crypton-nestjs-kit/common';
+import { Prisma } from '@crypton-nestjs-kit/prisma/src/ws-coordinator/generated/ws-client';
 
 @Injectable()
 export class CoordinatorService {
-  constructor(
-    @InjectRepository(ServiceEntity)
-    private readonly serviceRepository: Repository<ServiceEntity>,
-  ) {}
+  constructor(private readonly prisma: WsCoordinatorPrismaService) {}
+
+  private mapPrismaServiceToDto(prismaService: any): Service {
+    return {
+      id: prismaService.id,
+      url: prismaService.url,
+      type: prismaService.type as unknown as ServiceType,
+      load:
+        prismaService.load instanceof Prisma.Decimal
+          ? prismaService.load.toNumber()
+          : Number(prismaService.load),
+      status: prismaService.status as unknown as ServiceStatus,
+      lastUpdated: prismaService.lastUpdated,
+      createdAt: prismaService.createdAt,
+    } as Service;
+  }
 
   public async registerService(
     data: IRegisterServiceRequest,
   ): Promise<IRegisterServiceResponse> {
     try {
-      const service = await this.serviceRepository.findOne({
+      const service = await this.prisma.service.findUnique({
         where: { url: data.url },
       });
 
       if (service) {
-        service.load = data.load;
-        service.status = ServiceStatus.ACTIVE;
-        service.type = data.type;
-
-        await this.serviceRepository.save(service);
+        await this.prisma.service.update({
+          where: { id: service.id },
+          data: {
+            load: new Prisma.Decimal(data.load),
+            status: ServiceStatus.ACTIVE,
+            type: data.type,
+          },
+        });
 
         return {
           status: true,
@@ -38,11 +54,13 @@ export class CoordinatorService {
         };
       }
 
-      await this.serviceRepository.save({
-        url: data.url,
-        type: data.type,
-        load: data.load,
-        status: ServiceStatus.ACTIVE,
+      await this.prisma.service.create({
+        data: {
+          url: data.url,
+          type: data.type,
+          load: new Prisma.Decimal(data.load),
+          status: ServiceStatus.ACTIVE,
+        },
       });
 
       return {
@@ -62,12 +80,14 @@ export class CoordinatorService {
     status: boolean;
     message: string;
     data: {
-      services: ServiceEntity[];
+      services: Service[];
     };
     error?: string;
   }> {
     try {
-      const services = await this.serviceRepository.find();
+      const services = (await this.prisma.service.findMany()).map((s) =>
+        this.mapPrismaServiceToDto(s),
+      );
 
       return {
         status: true,
@@ -92,16 +112,18 @@ export class CoordinatorService {
     status: boolean;
     message: string;
     data: {
-      services: ServiceEntity[];
+      services: Service[];
     };
     error?: string;
   }> {
     try {
-      const services = await this.serviceRepository.find({
-        where: {
-          status: ServiceStatus.ACTIVE,
-        },
-      });
+      const services = (
+        await this.prisma.service.findMany({
+          where: {
+            status: ServiceStatus.ACTIVE,
+          },
+        })
+      ).map((s) => this.mapPrismaServiceToDto(s));
 
       return {
         status: true,
@@ -126,7 +148,7 @@ export class CoordinatorService {
     id: string,
     status: ServiceStatus,
   ): Promise<void> {
-    await this.serviceRepository.update({ id }, { status });
+    await this.prisma.service.update({ where: { id }, data: { status } });
   }
 
   public async updateServiceLoadById(
@@ -134,7 +156,10 @@ export class CoordinatorService {
     load: number,
     status: ServiceStatus,
   ): Promise<void> {
-    await this.serviceRepository.update({ id }, { load, status });
+    await this.prisma.service.update({
+      where: { id },
+      data: { load: new Prisma.Decimal(load), status },
+    });
   }
 
   public async getLeastLoadedService(
@@ -143,10 +168,12 @@ export class CoordinatorService {
     try {
       const { type } = data;
 
-      const activeServices = await this.serviceRepository.find({
-        where: { status: ServiceStatus.ACTIVE, type },
-        order: { load: 'ASC' },
-      });
+      const activeServices = (
+        await this.prisma.service.findMany({
+          where: { status: ServiceStatus.ACTIVE, type },
+          orderBy: { load: 'asc' },
+        })
+      ).map((s) => this.mapPrismaServiceToDto(s));
 
       if (activeServices.length === 0) {
         return {

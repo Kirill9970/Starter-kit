@@ -1,23 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import {
-  BatchOperationStatus,
-  OperationEntity,
-} from '@crypton-nestjs-kit/common';
+import { BatchOperationStatus } from '@crypton-nestjs-kit/common';
 import { CustomLoggerService } from '@crypton-nestjs-kit/logger';
-import { In, Repository } from 'typeorm';
+import { BatchPrismaService } from '@crypton-nestjs-kit/prisma';
 
 import {
   ProcessOperations,
   UpdateBatchOperationStatus,
 } from '../interfaces/batch.interface';
-import { BATCH_CONNECTION_NAME } from './batch.constants';
 
 @Injectable()
 export class WorkerService {
   constructor(
-    @InjectRepository(OperationEntity, BATCH_CONNECTION_NAME)
-    private readonly operationRepository: Repository<OperationEntity>,
+    private readonly prisma: BatchPrismaService,
     private readonly logger: CustomLoggerService,
   ) {
     this.logger.setContext(WorkerService.name);
@@ -28,10 +22,15 @@ export class WorkerService {
   }): Promise<ProcessOperations> {
     try {
       // TODO: index: status, created_at
-      const result = (await this.operationRepository.find({
-        select: ['id', 'operationType', 'sql', 'createdAt'],
+      const result = (await this.prisma.batchOperation.findMany({
+        select: {
+          id: true,
+          operationType: true,
+          sql: true,
+          createdAt: true,
+        },
         where: { status: BatchOperationStatus.UNPROCESSED },
-        order: { createdAt: 'ASC' },
+        orderBy: { createdAt: 'asc' },
         take: data.limit,
       })) as unknown as ProcessOperations;
 
@@ -45,10 +44,10 @@ export class WorkerService {
 
   async setProcessOperationsStatus(data: { ids: string[] }): Promise<boolean> {
     try {
-      await this.operationRepository.update(
-        { id: In(data.ids) },
-        { status: BatchOperationStatus.PROCESSING },
-      );
+      await this.prisma.batchOperation.updateMany({
+        where: { id: { in: data.ids } },
+        data: { status: BatchOperationStatus.PROCESSING },
+      });
 
       return true;
     } catch (e) {
@@ -62,17 +61,14 @@ export class WorkerService {
     data: UpdateBatchOperationStatus[],
   ): Promise<boolean> {
     try {
-      const queries = data
-        .map(
-          ({ id, status, error }) =>
-            `UPDATE "BatchOperation" SET 
-              status = '${status}', 
-              error = '${error || ''}'
-              WHERE id = '${id}';`,
-        )
-        .join(' ');
-
-      await this.operationRepository.query(`BEGIN; ${queries} COMMIT;`);
+      await this.prisma.$transaction(
+        data.map(({ id, status, error }) =>
+          this.prisma.batchOperation.update({
+            where: { id },
+            data: { status, error: error ?? null },
+          }),
+        ),
+      );
 
       return true;
     } catch (e) {

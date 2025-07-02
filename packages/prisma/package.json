@@ -1,0 +1,57 @@
+{
+  "name": "@crypton-nestjs-kit/prisma",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "MIT",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "generate:shared": "prisma generate --schema src/shared/schema.prisma",
+    "generate:batch": "prisma generate --schema src/batch/schema.prisma",
+    "generate:ws": "prisma generate --schema src/ws-coordinator/schema.prisma",
+    "pull:shared": "prisma db pull --schema src/shared/schema.prisma",
+    "pull:batch": "prisma db pull --schema src/batch/schema.prisma",
+    "pull:ws": "prisma db pull --schema src/ws-coordinator/schema.prisma",
+    "init:shared": "pnpm run pull:shared && pnpm run generate:shared",
+    "init:batch": "pnpm run pull:batch && pnpm run generate:batch",
+    "init:ws": "pnpm run pull:ws && pnpm run generate:ws",
+    "init:all": "pnpm run init:shared && pnpm run init:batch && pnpm run init:notification && pnpm run init:ws",
+    "generate:all": "pnpm run generate:shared && pnpm run generate:batch && pnpm run generate:ws",
+    "copy:generated": "copyfiles -u 1 \"src/**/generated/**/*\" build",
+    "build": "pnpm run generate:all && tsc && pnpm run copy:generated",
+    "check-engines": "node ../../node_modules/fbjs-scripts/node/check-dev-engines.js package.json",
+    "clean": "rimraf build && rimraf coverage",
+    "prebuild": "npm run clean && npm run check-engines",
+    "prepublishOnly": "npm run build",
+    "pretest": "npm run build",
+    "test": "npm run test:ci",
+    "test:ci": "jest --ci --collectCoverage --maxWorkers 2 --passWithNoTests",
+    "lint": "eslint \"{src,test}/**/*.ts\" --no-error-on-unmatched-pattern --quiet --fix"
+  },
+  "engines": {
+    "node": ">=20.x",
+    "npm": ">=10.2.x"
+  },
+  "devEngines": {
+    "node": ">=20.x",
+    "npm": ">=10.2.x"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.15",
+    "@prisma/client": "^6.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.11",
+    "eslint": "^8.26.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-simple-import-sort": "^10.0.0",
+    "prettier": "^2.3.2",
+    "prisma": "^6.10.1",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2",
+    "copyfiles": "^2.4.1"
+  }
+}

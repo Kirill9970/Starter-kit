@@ -1,9 +1,7 @@
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   API_KEY_ERROR_CODES,
-  ApiKeyEntity,
   apiKeyErrorMessages,
   ApiKeyType,
   CreateApiKeyDto,
@@ -14,8 +12,8 @@ import {
   UpdateApiKeyDto,
   UserClient,
 } from '@crypton-nestjs-kit/common';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
 import * as crypto from 'crypto';
-import { Repository } from 'typeorm';
 
 const API_KEY_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const API_KEY_CACHE_SLICE_LENGTH = 24;
@@ -24,8 +22,7 @@ const API_KEY_VALIDATE_CACHE_PREFIX = 'api-key-validate';
 @Injectable()
 export class ApiKeyService {
   constructor(
-    @InjectRepository(ApiKeyEntity)
-    private readonly apiKeyRepo: Repository<ApiKeyEntity>,
+    private readonly prisma: SharedPrismaService,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
     private readonly serviceJwtGenerator: ServiceJwtGenerator,
@@ -42,17 +39,18 @@ export class ApiKeyService {
     const now = new Date();
     const expiredAt = new Date(now.getTime() + API_KEY_TTL);
 
-    const apiKey = this.apiKeyRepo.create({
-      userId: dto.userId,
-      encryptedKey,
-      type: dto.type,
-      encryptedAllowedIps,
-      permissions: encryptedAllowedPermissions,
-      isActive: true,
-      expiredAt,
+    const apiKey = await this.prisma.apiKeys.create({
+      data: {
+        userId: dto.userId,
+        encryptedKey,
+        type: dto.type,
+        encryptedAllowedIps,
+        permissions: encryptedAllowedPermissions,
+        isActive: true,
+        expiredAt,
+      },
     });
 
-    await this.apiKeyRepo.save(apiKey);
     await this.cacheManager.set(
       `${API_KEY_VALIDATE_CACHE_PREFIX}:${rawKey.slice(
         0,
@@ -72,7 +70,7 @@ export class ApiKeyService {
       key: rawKey,
       type: apiKey.type as ApiKeyType,
       allowedIps: dto.allowedIps || [],
-      permissions: dto.permissions || [],
+      permissions: apiKey.permissions || [],
       isActive: apiKey.isActive,
       expiredAt: apiKey.expiredAt.toISOString(),
       createdAt: apiKey.createdAt.toISOString(),
@@ -80,7 +78,7 @@ export class ApiKeyService {
   }
 
   async listApiKeys(): Promise<IApiKey[]> {
-    const keys = await this.apiKeyRepo.find();
+    const keys = await this.prisma.apiKeys.findMany();
 
     return keys.map((k) => ({
       id: k.id,
@@ -99,7 +97,7 @@ export class ApiKeyService {
     userId: string,
     dto: UpdateApiKeyDto,
   ): Promise<IApiKey> {
-    const apiKey = await this.apiKeyRepo.findOne({ where: { id } });
+    const apiKey = await this.prisma.apiKeys.findUnique({ where: { id } });
 
     if (!apiKey) {
       throw new Error(apiKeyErrorMessages[API_KEY_ERROR_CODES.NOT_FOUND]);
@@ -123,7 +121,10 @@ export class ApiKeyService {
       }
     });
 
-    await this.apiKeyRepo.save(apiKey);
+    await this.prisma.apiKeys.update({
+      where: { id },
+      data: apiKey,
+    });
     await this.cacheManager.set(
       `${API_KEY_VALIDATE_CACHE_PREFIX}:${decrypt(apiKey.encryptedKey).slice(
         0,
@@ -154,13 +155,13 @@ export class ApiKeyService {
   async deleteApiKey(
     id: string,
   ): Promise<{ status: boolean; message: string }> {
-    const apiKey = await this.apiKeyRepo.findOne({ where: { id } });
+    const apiKey = await this.prisma.apiKeys.findUnique({ where: { id } });
 
     if (!apiKey) {
       throw new Error(apiKeyErrorMessages[API_KEY_ERROR_CODES.NOT_FOUND]);
     }
 
-    await this.apiKeyRepo.delete(id);
+    await this.prisma.apiKeys.delete({ where: { id } });
     // Инвалидация кэша по id и списку
     await this.cacheManager.del(
       `${API_KEY_VALIDATE_CACHE_PREFIX}:${decrypt(apiKey.encryptedKey).slice(
@@ -173,7 +174,7 @@ export class ApiKeyService {
   }
 
   async getApiKeyById(id: string): Promise<IApiKey> {
-    const apiKey = await this.apiKeyRepo.findOne({ where: { id } });
+    const apiKey = await this.prisma.apiKeys.findUnique({ where: { id } });
 
     if (!apiKey) {
       throw new Error(apiKeyErrorMessages[API_KEY_ERROR_CODES.NOT_FOUND]);
@@ -215,7 +216,7 @@ export class ApiKeyService {
     }>(cacheKey);
 
     if (!keyData) {
-      const apiKeys = await this.apiKeyRepo.find();
+      const apiKeys = await this.prisma.apiKeys.findMany();
       const apiKey = apiKeys.find(
         (key) => decrypt(key.encryptedKey) === rawKey,
       );

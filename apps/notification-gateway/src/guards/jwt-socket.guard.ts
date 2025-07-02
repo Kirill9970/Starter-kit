@@ -42,6 +42,7 @@ export class JwtSocketGuard implements CanActivate {
         fingerprint: '',
       },
       '123123',
+      '',
     );
 
     if (!userTokenInfo.user.userId) throw new UnauthorizedException();
@@ -53,6 +54,7 @@ export class JwtSocketGuard implements CanActivate {
         userId: userId,
       },
       uuid(),
+      '',
     );
 
     if (!user) throw new UnauthorizedException();

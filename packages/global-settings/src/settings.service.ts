@@ -1,9 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { BatchPrismaService } from '@crypton-nestjs-kit/prisma';
 
 import { DEFAULT_SETTINGS } from './settings.default';
-import { SettingsEntity } from './settings.entity';
+import { Settings } from './settings.interface';
 
 @Injectable()
 export class SettingService implements OnModuleInit {
@@ -11,8 +10,7 @@ export class SettingService implements OnModuleInit {
   settings = DEFAULT_SETTINGS;
 
   constructor(
-    @InjectRepository(SettingsEntity)
-    private readonly settingsRepository: Repository<SettingsEntity>,
+    @Inject(BatchPrismaService) private readonly prisma: BatchPrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -22,10 +20,10 @@ export class SettingService implements OnModuleInit {
   }
 
   private async pull(): Promise<void> {
-    const databaseSettings = await this.settingsRepository.find();
+    const databaseSettings = await this.prisma.settings.findMany();
 
-    databaseSettings.forEach((setting) => {
-      this.settings[setting.key] = setting.data;
+    databaseSettings.forEach((setting: { key: string; data: any }) => {
+      this.settings[setting.key as Settings] = setting.data;
     });
   }
 }

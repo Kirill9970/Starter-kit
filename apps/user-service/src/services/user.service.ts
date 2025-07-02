@@ -1,11 +1,7 @@
 import { Cache } from '@nestjs/cache-manager';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from '@nestjs/common';
 import {
-  ApiKeyType,
   AuthClient,
-  comparePassword,
-  decrypt,
   DefaultRole,
   hashPassword,
   ICreateConfirmationCodesResponse,
@@ -16,20 +12,16 @@ import {
   IGetUserByIdRequest,
   IGetUserByIdResponse,
   IGetUserByLoginRequest,
-  INativeLoginRequest,
-  INativeLoginResponse,
-  ISessionCreateRequest,
   LoginMethod,
-  TwoFactorPermissionsEntity,
-  UserEntity,
-  UserLoginMethodsEntity,
+  User,
   UserStatus,
+  UserType,
 } from '@crypton-nestjs-kit/common';
-import { PermissionEntity } from '@crypton-nestjs-kit/common/build/entities/user/permissions.entity';
-import { RoleEntity } from '@crypton-nestjs-kit/common/build/entities/user/role.entity';
-import { UserRoleEntity } from '@crypton-nestjs-kit/common/build/entities/user/user-role.entity';
+import type { PermissionEntity } from '@crypton-nestjs-kit/common/build/entities/user/permissions.entity';
+import type { RoleEntity } from '@crypton-nestjs-kit/common/build/entities/user/role.entity';
+import { SharedPrismaService } from '@crypton-nestjs-kit/prisma';
+import { Prisma } from '@crypton-nestjs-kit/prisma/src/shared/generated/shared-client';
 import { isUUID } from 'class-validator';
-import { In, Repository } from 'typeorm';
 import { v4 } from 'uuid';
 import { uuid } from 'uuidv4';
 
@@ -55,38 +47,33 @@ const filterUser = (user: any) => {
 };
 
 @Injectable()
-export class UserService implements OnModuleInit {
+export class UserService {
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly userRepo: Repository<UserEntity>,
-    @InjectRepository(UserLoginMethodsEntity)
-    private readonly userLoginMethods: Repository<UserLoginMethodsEntity>,
-    @InjectRepository(RoleEntity)
-    private readonly roleRepo: Repository<RoleEntity>,
-    @InjectRepository(UserRoleEntity)
-    private readonly userRoleRepo: Repository<UserRoleEntity>,
-    @InjectRepository(PermissionEntity)
-    private readonly permissionRepo: Repository<PermissionEntity>,
-    @InjectRepository(TwoFactorPermissionsEntity)
-    private readonly twoFactorPermissionsRepo: Repository<TwoFactorPermissionsEntity>,
     private readonly cacheManager: Cache,
     private readonly authClient: AuthClient,
+    private readonly prisma: SharedPrismaService,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    const defaultRoles = await this.findDefaultRole();
-
-    if (defaultRoles.length < 1) {
-      await this.createDefaultRole();
-    }
-  }
 
   public async registerPermissions(request: any): Promise<any> {
     try {
-      await this.permissionRepo.upsert(request.permissions, [
-        'messagePattern',
-        'method',
-      ]);
+      await Promise.all(
+        request.permissions.map((permission: any) =>
+          this.prisma.permissions.upsert({
+            where: {
+              messagePattern_method: {
+                messagePattern: permission.messagePattern,
+                method: permission.method,
+              },
+            },
+            update: {
+              alias: permission.alias,
+              isPublic: permission.isPublic,
+              description: permission.description,
+            },
+            create: permission,
+          }),
+        ),
+      );
 
       await this.updateDefaultRolePermissions(request.permissions);
 
@@ -106,7 +93,7 @@ export class UserService implements OnModuleInit {
 
   public async getPermissionList(): Promise<any> {
     try {
-      const permissions = await this.permissionRepo.find();
+      const permissions = await this.prisma.permissions.findMany();
 
       if (permissions.length === 0) {
         return {
@@ -134,52 +121,75 @@ export class UserService implements OnModuleInit {
   private async updateDefaultRolePermissions(
     permissions: PermissionEntity[],
   ): Promise<boolean> {
-    const default_roles = await this.roleRepo.find({
-      where: { name: In(Object.keys(DefaultRole)) },
-      relations: ['permissions'],
+    const defaultRoles = await this.prisma.roles.findMany({
+      where: { name: { in: Object.keys(DefaultRole) } },
+      include: {
+        RolePermissions: {
+          include: {
+            Permissions: {
+              select: { alias: true },
+            },
+          },
+        },
+      },
     });
 
     const isUpdated = await Promise.all(
-      default_roles.map(async (role) => {
+      defaultRoles.map(async (role) => {
         const newPermissions = permissions.filter(
-          (permission) =>
-            !role.permissions.some((p) => p.alias === permission.alias),
+          (p) =>
+            !role.RolePermissions.some(
+              (rp) => rp.Permissions.alias === p.alias,
+            ),
         );
 
         if (newPermissions.length === 0) {
           return false;
         }
 
-        role.permissions.push(
-          ...newPermissions.map((permission) =>
-            this.permissionRepo.create(permission),
-          ),
-        );
+        const data: Prisma.RolePermissionsCreateManyInput[] =
+          newPermissions.map((p) => ({
+            rolesId: role.id,
+            permissionsId: p.id as unknown as string,
+          }));
 
-        await this.roleRepo.save(role);
+        await this.prisma.rolePermissions.createMany({
+          data,
+          skipDuplicates: true,
+        });
 
         return true;
       }),
     );
 
-    return isUpdated.some((updated) => updated);
+    return isUpdated.some(Boolean);
   }
 
   public async updateTwoFaPermissions(request: any): Promise<any> {
     try {
       const permissions = request.twoFaPermissions.map((permission: any) => {
         return {
-          user: request.userId,
-          permission: permission.permissionId,
-          confirmationMethod: permission.confirmationMethodId,
+          userId: request.userId,
+          permissionId: permission.permissionId,
+          confirmationMethodId: permission.confirmationMethodId,
         };
       });
 
-      await this.twoFactorPermissionsRepo.upsert(permissions, [
-        'user',
-        'permission',
-        'confirmationMethod',
-      ]);
+      await Promise.all(
+        permissions.map((p) =>
+          this.prisma.twoFactorPermissions.upsert({
+            where: {
+              userId_permissionId_confirmationMethodId: {
+                userId: p.userId,
+                permissionId: p.permissionId,
+                confirmationMethodId: p.confirmationMethodId,
+              },
+            },
+            update: {},
+            create: p,
+          }),
+        ),
+      );
 
       return {
         status: true,
@@ -231,8 +241,13 @@ export class UserService implements OnModuleInit {
 
   public async getUserConfirmationMethods(request: any): Promise<any> {
     try {
-      const confirmationMethods = await this.userLoginMethods.find({
-        select: ['id', 'method', 'login', 'isPrimary'],
+      const confirmationMethods = await this.prisma.userLoginMethods.findMany({
+        select: {
+          id: true,
+          method: true,
+          login: true,
+          isPrimary: true,
+        },
         where: {
           userId: request.userId,
         },
@@ -307,7 +322,7 @@ export class UserService implements OnModuleInit {
       const data = await this.getUserById({ userId });
 
       if (!isUUID(permissionId)) {
-        const permission = await this.permissionRepo.findOne({
+        const permission = await this.prisma.permissions.findFirst({
           where: { method: permissionId },
         });
 
@@ -355,21 +370,24 @@ export class UserService implements OnModuleInit {
 
   public async registrationConfirm(data: any): Promise<any> {
     try {
-      const user = await this.userLoginMethods
-        .createQueryBuilder('ulm')
-        .innerJoin('ulm.user', 'user')
-        .where('ulm.login = :login', { login: data.login })
-        .andWhere('user.status = :status', { status: UserStatus.INACTIVE })
-        .select([
-          'user.id AS id',
-          'ulm.login AS login',
-          'ulm.method AS loginType',
-          'ulm.code AS code',
-          'ulm.codeLifetime AS codeLifetime',
-        ])
-        .getRawOne();
+      const userLoginMethod = await this.prisma.userLoginMethods.findFirst({
+        where: {
+          login: data.login,
+          User: {
+            status: UserStatus.INACTIVE,
+          },
+        },
+        select: {
+          id: true,
+          login: true,
+          method: true,
+          code: true,
+          codeLifetime: true,
+          userId: true,
+        },
+      });
 
-      if (!user) {
+      if (!userLoginMethod) {
         return {
           status: false,
           message: 'User not found',
@@ -377,7 +395,10 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      if (+user.code !== +data.code || user.codeLifetime < new Date()) {
+      if (
+        +userLoginMethod.code !== +data.code ||
+        userLoginMethod.codeLifetime < new Date()
+      ) {
         return {
           status: false,
           message: 'Invalid code or code expired',
@@ -385,8 +406,11 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      await this.activateUser(user.id);
-      await this.resetConfirmationCode(user.login, user.id);
+      await this.activateUser(userLoginMethod.userId);
+      await this.resetConfirmationCode(
+        userLoginMethod.login,
+        userLoginMethod.userId,
+      );
 
       return {
         status: true,
@@ -410,25 +434,48 @@ export class UserService implements OnModuleInit {
     login: string;
     role: string;
   }> {
-    return await this.userLoginMethods
-      .createQueryBuilder('ulm')
-      .innerJoin('ulm.user', 'user')
-      .leftJoin('user.roles', 'userRole')
-      .leftJoin('userRole.role', 'role')
-      .where('ulm.login = :login', { login })
-      .andWhere('user.status = :status', { status })
-      .select([
-        'user.id AS id',
-        'user.password AS password',
-        'userRole.role AS role',
-        'ulm.login AS login',
-        'ulm.method AS loginType',
-      ])
-      .getRawOne();
+    const userLoginMethod = await this.prisma.userLoginMethods.findFirst({
+      where: {
+        login,
+        User: {
+          status,
+        },
+      },
+      select: {
+        login: true,
+        method: true,
+        User: {
+          select: {
+            id: true,
+            password: true,
+            UserRoles: {
+              select: {
+                Roles: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!userLoginMethod) {
+      return null;
+    }
+
+    return {
+      id: userLoginMethod.User.id,
+      password: userLoginMethod.User.password,
+      login: userLoginMethod.login,
+      role: userLoginMethod.User.UserRoles.map((r) => r.Roles.name).join(','),
+    };
   }
 
   private async createUser(data: IFindOrCreateUserRequest): Promise<any> {
-    const role = await this.roleRepo.findOne({ where: { name: 'USER' } });
+    const role = await this.prisma.roles.findFirst({ where: { name: 'USER' } });
 
     if (!role) {
       throw new Error('Role "USER" not found');
@@ -447,31 +494,34 @@ export class UserService implements OnModuleInit {
     const userId = uuid();
     const username = `${USERNAME_PREFIX}${uniqueUsernameNumber}`;
 
-    const loginMethod = this.userLoginMethods.create({
-      userId,
-      method: LoginMethod[data.loginType.toUpperCase()],
-      login: data.login,
-      code: randomstring.generate({ length: 6, charset: 'numeric' }),
-      codeLifetime: new Date(Date.now() + 5 * 60 * 1000),
+    const newUser = await this.prisma.user.create({
+      data: {
+        id: userId,
+        username,
+        referralCode: referralCode as number,
+        password: await hashPassword(data.password),
+
+        UserLoginMethods: {
+          create: {
+            id: uuid(),
+            method:
+              LoginMethod[
+                data.loginType.toUpperCase() as keyof typeof LoginMethod
+              ],
+            login: data.login,
+            code: randomstring.generate({ length: 6, charset: 'numeric' }),
+            codeLifetime: new Date(Date.now() + 5 * 60 * 1000),
+          },
+        },
+
+        UserRoles: {
+          create: {
+            id: uuid(),
+            roleId: role.id,
+          },
+        },
+      },
     });
-
-    const newUser = this.userRepo.create({
-      id: userId,
-      username,
-      referralCode: referralCode,
-      password: await hashPassword(data.password),
-      loginMethods: [loginMethod],
-    });
-
-    const userRole = this.userRoleRepo.create({
-      id: uuid(),
-      user: newUser,
-      role: role,
-    });
-
-    newUser.roles = [userRole];
-
-    await this.userRepo.save(newUser);
 
     return {
       id: newUser.id,
@@ -482,14 +532,10 @@ export class UserService implements OnModuleInit {
   }
 
   private async activateUser(userId: string): Promise<any> {
-    const { affected } = await this.userRepo.update(
-      { id: userId },
-      { status: UserStatus.ACTIVE, updatedAt: new Date() },
-    );
-
-    if (affected === 0) {
-      throw new Error('The user is not activated');
-    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: UserStatus.ACTIVE, updatedAt: new Date() },
+    });
   }
 
   async resetConfirmationCode(
@@ -512,23 +558,21 @@ export class UserService implements OnModuleInit {
         throw new Error('Code reset failed');
       }
 
-      const loginMethod = await this.userLoginMethods.findOne({ where });
+      const loginMethod = await this.prisma.userLoginMethods.findFirst({
+        where,
+      });
 
       if (!loginMethod) {
         throw new Error('Code reset failed');
       }
 
-      const { affected } = await this.userLoginMethods.update(
-        { id: loginMethod.id },
-        {
+      await this.prisma.userLoginMethods.update({
+        where: { id: loginMethod.id },
+        data: {
           code: null,
           codeLifetime: null,
         },
-      );
-
-      if (affected == 0) {
-        throw new Error('Code reset failed');
-      }
+      });
 
       await this.cacheManager.del(`getUserById:${loginMethod.userId}`);
 
@@ -542,35 +586,32 @@ export class UserService implements OnModuleInit {
     userId: string,
     verificationMethod: string,
   ): Promise<any> {
-    const { affected } = await this.userLoginMethods.update(
-      { userId: userId, login: verificationMethod },
-      {
+    const result = await this.prisma.userLoginMethods.updateMany({
+      where: { userId: userId, login: verificationMethod },
+      data: {
         code: randomstring.generate({ length: 6, charset: 'numeric' }),
         codeLifetime: new Date(Date.now() + 5 * 60 * 1000),
       },
-    );
+    });
 
-    if (affected == 0) {
+    if (result.count === 0) {
       throw new Error('Code reset failed');
     }
   }
 
   public async crateTwoFaCode(verificationMethodId: string): Promise<any> {
-    const { affected } = await this.userLoginMethods.update(
-      { id: verificationMethodId },
-      {
+    await this.prisma.userLoginMethods.update({
+      where: { id: verificationMethodId },
+      data: {
         code: randomstring.generate({ length: 6, charset: 'numeric' }),
         codeLifetime: new Date(Date.now() + 5 * 60 * 1000),
       },
-    );
-
-    if (affected == 0) {
-      throw new Error('Code reset failed');
-    }
+    });
 
     return true;
   }
 
+  /* eslint-disable-next-line max-lines-per-function */
   public async getUserById(
     data: IGetUserByIdRequest,
   ): Promise<IGetUserByIdResponse> {
@@ -588,19 +629,27 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      const user = await this.userRepo.findOne({
+      const prismaUser = await this.prisma.user.findUnique({
         where: {
           id: data.userId,
         },
-        relations: [
-          'roles.role',
-          'loginMethods',
-          'twoFaPermissions.permission',
-          'twoFaPermissions.confirmationMethod',
-        ],
+        include: {
+          UserRoles: {
+            include: {
+              Roles: true,
+            },
+          },
+          UserLoginMethods: true,
+          TwoFactorPermissions: {
+            include: {
+              Permissions: true,
+              UserLoginMethods: true,
+            },
+          },
+        },
       });
 
-      if (!user) {
+      if (!prismaUser) {
         return {
           status: false,
           message: 'User not found',
@@ -608,12 +657,59 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      await this.cacheManager.set(CACHE_KEY, JSON.stringify(user), 60 * 1000);
+      type UserWithRelations = Prisma.UserGetPayload<{
+        include: {
+          UserRoles: { include: { Roles: true } };
+          UserLoginMethods: true;
+          TwoFactorPermissions: {
+            include: { Permissions: true; UserLoginMethods: true };
+          };
+        };
+      }>;
+
+      const userWithRelations: UserWithRelations = {
+        ...prismaUser,
+        roles: prismaUser.UserRoles?.map((ur) => ur.Roles) || [],
+        loginMethods: prismaUser.UserLoginMethods || [],
+        twoFaPermissions:
+          prismaUser.TwoFactorPermissions?.map((tp) => ({
+            ...tp,
+            permission: tp.Permissions,
+            confirmationMethod: tp.UserLoginMethods,
+          })) || [],
+      } as UserWithRelations;
+
+      // Map DB specific fields/enums to SDK compatible structure expected by the contracts
+      const {
+        extra_data, // eslint-disable-line @typescript-eslint/naming-convention
+        status,
+        type,
+        ...rest
+      } = userWithRelations;
+
+      const safeUser = {
+        ...rest,
+        // Map snake_case DB column to camelCase property expected by consumers
+        extraData: extra_data,
+        // Cast enum values so that typings are compatible with @crypton-nestjs-kit/common enums
+        status: status as unknown as UserStatus,
+        type: type as unknown as UserType,
+        referralCode:
+          userWithRelations.referralCode instanceof Prisma.Decimal
+            ? userWithRelations.referralCode.toNumber()
+            : (userWithRelations.referralCode as number),
+      } as Partial<User>;
+
+      await this.cacheManager.set(
+        CACHE_KEY,
+        JSON.stringify(safeUser),
+        60 * 1000,
+      );
 
       return {
         status: true,
         message: 'User exists',
-        user,
+        user: safeUser,
       };
     } catch (e) {
       return {
@@ -641,19 +737,23 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      const user = await this.userLoginMethods
-        .createQueryBuilder('ulm')
-        .innerJoin('ulm.user', 'user')
-        .where('ulm.login = :login', { login: data.login })
-        .select([
-          'user.id AS id',
-          'user.password AS password',
-          'ulm.login AS login',
-          'ulm.method AS loginType',
-        ])
-        .getRawOne();
+      const userLoginMethod = await this.prisma.userLoginMethods.findFirst({
+        where: {
+          login: data.login,
+        },
+        select: {
+          login: true,
+          method: true,
+          User: {
+            select: {
+              id: true,
+              password: true,
+            },
+          },
+        },
+      });
 
-      if (!user) {
+      if (!userLoginMethod) {
         return {
           status: false,
           message: 'User not found',
@@ -661,12 +761,27 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      await this.cacheManager.set(CACHE_KEY, JSON.stringify(user), 60 * 1000);
+      const safeLoginUser: Partial<User> = {
+        id: userLoginMethod.User.id,
+        loginMethods: [
+          {
+            login: userLoginMethod.login,
+            method: userLoginMethod.method,
+          },
+        ],
+        password: userLoginMethod.User.password,
+      };
+
+      await this.cacheManager.set(
+        CACHE_KEY,
+        JSON.stringify(safeLoginUser),
+        60 * 1000,
+      );
 
       return {
         status: true,
         message: 'User exists',
-        user,
+        user: safeLoginUser,
       };
     } catch (e) {
       return {
@@ -694,18 +809,16 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      const user = await this.userLoginMethods
-        .createQueryBuilder('ulm')
-        .innerJoin('ulm.user', 'user')
-        .where('ulm.login = :login', { login: data.login })
-        .select([
-          'user.id AS id',
-          'ulm.login AS login',
-          'ulm.method AS loginType',
-        ])
-        .getRawOne();
+      const userSecure = await this.prisma.userLoginMethods.findFirst({
+        where: { login: data.login },
+        select: {
+          login: true,
+          method: true,
+          User: { select: { id: true } },
+        },
+      });
 
-      if (!user) {
+      if (!userSecure) {
         return {
           status: false,
           message: 'User not found',
@@ -713,12 +826,22 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      await this.cacheManager.set(CACHE_KEY, JSON.stringify(user), 60 * 1000);
+      const safeUser = {
+        id: userSecure.User.id,
+        login: userSecure.login,
+        loginType: userSecure.method,
+      };
+
+      await this.cacheManager.set(
+        CACHE_KEY,
+        JSON.stringify(safeUser),
+        60 * 1000,
+      );
 
       return {
         status: true,
         message: 'User exists',
-        user,
+        user: safeUser,
       };
     } catch (e) {
       return {
@@ -743,8 +866,15 @@ export class UserService implements OnModuleInit {
         where.push({ name: data.roleId });
       }
 
-      const role = await this.roleRepo.findOne({
-        where,
+      const role = await this.prisma.roles.findUnique({
+        where: { id: data.roleId },
+        include: {
+          RolePermissions: {
+            include: {
+              Permissions: true,
+            },
+          },
+        },
       });
       const CACHE_KEY = `rolePermissions:${role.id}`;
 
@@ -753,12 +883,11 @@ export class UserService implements OnModuleInit {
       permissions = undefined;
 
       if (!permissions) {
-        const rolePermissions = await this.roleRepo.query(
-          `
-          SELECT p.*
-          FROM "RolePermissions" rp
-          JOIN "Permissions" p ON rp."permissionsId"::uuid = p.id::uuid
-          WHERE rp."rolesId" = $1 AND p."isPublic" = true;`,
+        const rolePermissions: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT p.*
+           FROM "RolePermissions" rp
+           JOIN "Permissions" p ON rp."permissionsId"::uuid = p.id::uuid
+           WHERE rp."rolesId" = $1 AND p."isPublic" = true;`,
           [role.id],
         );
 
@@ -781,13 +910,7 @@ export class UserService implements OnModuleInit {
       return {
         status: true,
         message: 'Permissions found',
-        permissions: permissions,
-      };
-
-      return {
-        status: true,
-        message: 'Permissions found',
-        permissions: permissions,
+        permissions,
       };
     } catch (e) {
       return {
@@ -812,7 +935,7 @@ export class UserService implements OnModuleInit {
         };
       }
 
-      const permission = await this.permissionRepo.findOne({
+      const permission = await this.prisma.permissions.findFirst({
         where: {
           messagePattern: pattern,
         },
@@ -844,24 +967,28 @@ export class UserService implements OnModuleInit {
   }
 
   private async findDefaultRole(): Promise<RoleEntity[]> {
-    return await this.roleRepo.find({
+    return (await this.prisma.roles.findMany({
       where: {
-        name: In(['USER', 'SUPER_ADMIN', 'ADMIN']),
+        name: {
+          in: ['USER', 'SUPER_ADMIN', 'ADMIN'],
+        },
       },
-    });
+    })) as unknown as RoleEntity[];
   }
 
   private async createDefaultRole(): Promise<void> {
     const defaultRoles = ['USER', 'SUPER_ADMIN', 'ADMIN'];
 
     const rolesEntities = defaultRoles.map((role) => {
-      return RoleEntity.create({
+      return {
         id: v4(),
         name: role,
         description: role.toLowerCase(),
-      });
+      };
     });
 
-    await this.roleRepo.save(rolesEntities);
+    await this.prisma.roles.createMany({
+      data: rolesEntities,
+    });
   }
 }

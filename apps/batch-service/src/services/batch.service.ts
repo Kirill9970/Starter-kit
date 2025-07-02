@@ -3,7 +3,6 @@ import {
   OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   BatchOperationStatus,
   ICreateBatchOperationRequest,
@@ -13,10 +12,8 @@ import {
   OperationEntity,
 } from '@crypton-nestjs-kit/common';
 import { CustomLoggerService } from '@crypton-nestjs-kit/logger';
+import { BatchPrismaService } from '@crypton-nestjs-kit/prisma';
 import { SettingService } from '@crypton-nestjs-kit/settings';
-import { Repository } from 'typeorm';
-
-import { BATCH_CONNECTION_NAME } from './batch.constants';
 
 @Injectable()
 export class BatchService implements OnModuleInit, OnApplicationShutdown {
@@ -27,8 +24,7 @@ export class BatchService implements OnModuleInit, OnApplicationShutdown {
   > = new Map();
 
   constructor(
-    @InjectRepository(OperationEntity, BATCH_CONNECTION_NAME)
-    private readonly operationRepository: Repository<OperationEntity>,
+    private readonly prisma: BatchPrismaService,
     private readonly settingsService: SettingService,
     private readonly logger: CustomLoggerService,
   ) {
@@ -85,7 +81,7 @@ export class BatchService implements OnModuleInit, OnApplicationShutdown {
     request: IGetBatchOperationRequest,
   ): Promise<IGetBatchOperationResponse> {
     try {
-      const operation = await this.operationRepository.findOne({
+      const operation = await this.prisma.batchOperation.findUnique({
         where: { id: request.id },
       });
 
@@ -127,12 +123,12 @@ export class BatchService implements OnModuleInit, OnApplicationShutdown {
 
         this.batchTransactions.clear();
 
-        this.operationRepository
-          .createQueryBuilder()
-          .insert()
-          .values(values)
-          .orIgnore('id')
-          .execute();
+        this.prisma.batchOperation
+          .createMany({
+            data: values,
+            skipDuplicates: true,
+          })
+          .catch((e) => this.logger.error(e));
 
         this.batchTimeToUpdate = Date.now();
       }
